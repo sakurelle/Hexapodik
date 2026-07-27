@@ -1,0 +1,25 @@
+.program servo_4ch
+
+.wrap_target
+    pull block
+    out pins, 4
+    pull block
+    mov x, osr
+delay_loop:
+    jmp x-- delay_loop
+.wrap
+
+% c-sdk {
+static inline void servo_4ch_program_init(PIO pio, uint sm, uint offset, uint first_pin) {
+    pio_sm_config c = servo_4ch_program_get_default_config(offset);
+    sm_config_set_out_pins(&c, first_pin, 4);
+    sm_config_set_out_shift(&c, true, false, 32);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+    sm_config_set_clkdiv(&c, 125.0f);
+    for (uint pin = first_pin; pin < first_pin + 4; ++pin) {
+        pio_gpio_init(pio, pin);
+    }
+    pio_sm_set_consecutive_pindirs(pio, sm, first_pin, 4, true);
+    pio_sm_init(pio, sm, offset, &c);
+}
+%}
