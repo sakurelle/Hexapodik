@@ -30,29 +30,33 @@ struct ServoConfig {
 
 // Temporary bench calibration. Direction is encoded by these values; there is
 // intentionally no separate inversion flag.
-constexpr ServoConfig make_temp_servo(Leg leg, Joint joint, uint8_t gpio) {
+constexpr ServoConfig make_right_temp_servo(Leg leg, Joint joint, uint8_t gpio) {
     return ServoConfig{leg, joint, gpio, 1500, 2000, 1000, -45.0f, 45.0f, true};
 }
 
+constexpr ServoConfig make_left_temp_servo(Leg leg, Joint joint, uint8_t gpio) {
+    return ServoConfig{leg, joint, gpio, 1500, 1000, 2000, -45.0f, 45.0f, true};
+}
+
 constexpr std::array<ServoConfig, SERVO_COUNT> DEFAULT_SERVOS = {{
-    make_temp_servo(Leg::FR, Joint::Coxa, 2),
-    make_temp_servo(Leg::FR, Joint::Femur, 3),
-    make_temp_servo(Leg::FR, Joint::Tibia, 4),
-    make_temp_servo(Leg::MR, Joint::Coxa, 5),
-    make_temp_servo(Leg::MR, Joint::Femur, 6),
-    make_temp_servo(Leg::MR, Joint::Tibia, 7),
-    make_temp_servo(Leg::RR, Joint::Coxa, 8),
-    make_temp_servo(Leg::RR, Joint::Femur, 9),
-    make_temp_servo(Leg::RR, Joint::Tibia, 10),
-    make_temp_servo(Leg::RL, Joint::Coxa, 11),
-    make_temp_servo(Leg::RL, Joint::Femur, 12),
-    make_temp_servo(Leg::RL, Joint::Tibia, 13),
-    make_temp_servo(Leg::ML, Joint::Coxa, 14),
-    make_temp_servo(Leg::ML, Joint::Femur, 15),
-    make_temp_servo(Leg::ML, Joint::Tibia, 26),
-    make_temp_servo(Leg::FL, Joint::Coxa, 27),
-    make_temp_servo(Leg::FL, Joint::Femur, 28),
-    make_temp_servo(Leg::FL, Joint::Tibia, 29),
+    make_right_temp_servo(Leg::FR, Joint::Coxa, 2),
+    make_right_temp_servo(Leg::FR, Joint::Femur, 3),
+    make_right_temp_servo(Leg::FR, Joint::Tibia, 4),
+    make_right_temp_servo(Leg::MR, Joint::Coxa, 5),
+    make_right_temp_servo(Leg::MR, Joint::Femur, 6),
+    make_right_temp_servo(Leg::MR, Joint::Tibia, 7),
+    make_right_temp_servo(Leg::RR, Joint::Coxa, 8),
+    make_right_temp_servo(Leg::RR, Joint::Femur, 9),
+    make_right_temp_servo(Leg::RR, Joint::Tibia, 10),
+    make_left_temp_servo(Leg::RL, Joint::Coxa, 11),
+    make_left_temp_servo(Leg::RL, Joint::Femur, 12),
+    make_left_temp_servo(Leg::RL, Joint::Tibia, 13),
+    make_left_temp_servo(Leg::ML, Joint::Coxa, 14),
+    make_left_temp_servo(Leg::ML, Joint::Femur, 15),
+    make_left_temp_servo(Leg::ML, Joint::Tibia, 26),
+    make_left_temp_servo(Leg::FL, Joint::Coxa, 27),
+    make_left_temp_servo(Leg::FL, Joint::Femur, 28),
+    make_left_temp_servo(Leg::FL, Joint::Tibia, 29),
 }};
 
 constexpr std::array<uint32_t, LEG_COUNT> LEG_PHASE_OFFSET_US = {{

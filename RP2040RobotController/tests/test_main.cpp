@@ -48,6 +48,23 @@ void test_increasing_and_decreasing_calibration() {
     assert(servo::angle_to_pulse_us(decreasing, 45.0f).pulse_us == 1000);
 }
 
+void test_default_right_and_left_servo_calibration() {
+    const auto &right = servo::DEFAULT_SERVOS[servo::servo_index(servo::Leg::FR, servo::Joint::Femur)];
+    assert(servo::angle_to_pulse_us(right, -45.0f).pulse_us == 2000);
+    assert(servo::angle_to_pulse_us(right, 0.0f).pulse_us == 1500);
+    assert(servo::angle_to_pulse_us(right, 45.0f).pulse_us == 1000);
+
+    const auto &left = servo::DEFAULT_SERVOS[servo::servo_index(servo::Leg::RL, servo::Joint::Femur)];
+    assert(servo::angle_to_pulse_us(left, -45.0f).pulse_us == 1000);
+    assert(servo::angle_to_pulse_us(left, 0.0f).pulse_us == 1500);
+    assert(servo::angle_to_pulse_us(left, 45.0f).pulse_us == 2000);
+
+    const auto right_stand_femur = servo::angle_to_pulse_us(right, -15.0f).pulse_us;
+    const auto left_stand_femur = servo::angle_to_pulse_us(left, -15.0f).pulse_us;
+    assert(right_stand_femur > servo::DEFAULT_CENTER_US);
+    assert(left_stand_femur < servo::DEFAULT_CENTER_US);
+}
+
 void test_angle_clamping() {
     auto cfg = temp_config();
     cfg.min_angle_deg = -20.0f;
@@ -151,6 +168,7 @@ int main() {
     test_angle_to_pulse_endpoints();
     test_interpolation();
     test_increasing_and_decreasing_calibration();
+    test_default_right_and_left_servo_calibration();
     test_angle_clamping();
     test_invalid_pulses();
     test_crc32();
