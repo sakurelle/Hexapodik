@@ -1,0 +1,27 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "pico-debug",
+            "displayName": "Pico Debug",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "PICO_BOARD": "pico",
+                "PICO_SDK_PATH": "$env{USERPROFILE}/.pico-sdk/sdk/2.3.0"
+            },
+            "environment": {
+                "PICO_SDK_PATH": "$env{USERPROFILE}/.pico-sdk/sdk/2.3.0",
+                "PICO_TOOLCHAIN_PATH": "$env{USERPROFILE}/.pico-sdk/toolchain/15_2_Rel1",
+                "PATH": "$env{USERPROFILE}/.pico-sdk/toolchain/15_2_Rel1/bin;$env{USERPROFILE}/.pico-sdk/picotool/2.3.0/picotool;$env{USERPROFILE}/.platformio/packages/tool-cmake/bin;$env{USERPROFILE}/.platformio/packages/tool-ninja;$penv{PATH}"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "pico-debug",
+            "configurePreset": "pico-debug"
+        }
+    ]
+}
