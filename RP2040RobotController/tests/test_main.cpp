@@ -1,4 +1,7 @@
 #include "protocol/uart_protocol.hpp"
+#include "robot/gait_controller.hpp"
+#include "robot/motion_controller.hpp"
+#include "robot/robot_model.hpp"
 #include "servo/servo_calibration.hpp"
 #include "servo/servo_frame_scheduler.hpp"
 #include "storage/config_storage.hpp"
@@ -6,6 +9,7 @@
 
 #include <array>
 #include <cassert>
+#include <cmath>
 #include <cstring>
 #include <iostream>
 
@@ -65,6 +69,24 @@ void test_default_right_and_left_servo_calibration() {
     assert(left_stand_femur < servo::DEFAULT_CENTER_US);
 }
 
+void test_left_and_right_pulses_are_mirrored() {
+    const auto &right = servo::DEFAULT_SERVOS[servo::servo_index(servo::Leg::FR, servo::Joint::Tibia)];
+    const auto &left = servo::DEFAULT_SERVOS[servo::servo_index(servo::Leg::FL, servo::Joint::Tibia)];
+
+    assert(servo::angle_to_pulse_us(right, -45.0f).pulse_us == 2000);
+    assert(servo::angle_to_pulse_us(right, 0.0f).pulse_us == 1500);
+    assert(servo::angle_to_pulse_us(right, 45.0f).pulse_us == 1000);
+
+    assert(servo::angle_to_pulse_us(left, -45.0f).pulse_us == 1000);
+    assert(servo::angle_to_pulse_us(left, 0.0f).pulse_us == 1500);
+    assert(servo::angle_to_pulse_us(left, 45.0f).pulse_us == 2000);
+
+    const auto right_pulse = servo::angle_to_pulse_us(right, 20.0f).pulse_us;
+    const auto left_pulse = servo::angle_to_pulse_us(left, 20.0f).pulse_us;
+    assert(right_pulse < servo::DEFAULT_CENTER_US);
+    assert(left_pulse > servo::DEFAULT_CENTER_US);
+}
+
 void test_angle_clamping() {
     auto cfg = temp_config();
     cfg.min_angle_deg = -20.0f;
@@ -115,6 +137,22 @@ void test_uart_parser_valid() {
     parsed = protocol::parse_command("LEG FL 0 -15 20");
     assert(parsed.error == protocol::ParseError::None);
     assert(parsed.command.type == protocol::CommandType::Leg);
+
+    parsed = protocol::parse_command("MARCH");
+    assert(parsed.error == protocol::ParseError::None);
+    assert(parsed.command.type == protocol::CommandType::March);
+
+    parsed = protocol::parse_command("walk demo");
+    assert(parsed.error == protocol::ParseError::None);
+    assert(parsed.command.type == protocol::CommandType::WalkDemo);
+
+    parsed = protocol::parse_command("WALK STOP");
+    assert(parsed.error == protocol::ParseError::None);
+    assert(parsed.command.type == protocol::CommandType::WalkStop);
+
+    parsed = protocol::parse_command("GAIT STATUS");
+    assert(parsed.error == protocol::ParseError::None);
+    assert(parsed.command.type == protocol::CommandType::GaitStatus);
 }
 
 void test_uart_parser_invalid() {
@@ -162,6 +200,148 @@ void test_no_events_outside_frame() {
     }
 }
 
+bool pose_close(const robot::RobotPose &a, const robot::RobotPose &b) {
+    constexpr float EPSILON = 0.001f;
+    for (size_t i = 0; i < a.legs.size(); ++i) {
+        if (std::fabs(a.legs[i].coxa_deg - b.legs[i].coxa_deg) > EPSILON ||
+            std::fabs(a.legs[i].femur_deg - b.legs[i].femur_deg) > EPSILON ||
+            std::fabs(a.legs[i].tibia_deg - b.legs[i].tibia_deg) > EPSILON) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void advance_gait(robot::GaitController &gait, robot::MotionController &motion, uint64_t &now_us) {
+    now_us += 20000;
+    gait.update(now_us, motion, servo::DEFAULT_SERVOS, true);
+    motion.update(20000);
+}
+
+void run_gait_until_idle(robot::GaitController &gait, robot::MotionController &motion, uint64_t &now_us) {
+    for (int i = 0; i < 2000; ++i) {
+        advance_gait(gait, motion, now_us);
+        if (!gait.active() && !motion.moving()) {
+            return;
+        }
+    }
+    assert(false && "gait did not finish");
+}
+
+void test_tripod_groups() {
+    size_t seen[servo::LEG_COUNT] = {};
+    for (const auto leg : robot::gait::TRIPOD_A) {
+        ++seen[servo::leg_index(leg)];
+        assert(!robot::gait::leg_in_tripod(leg, robot::gait::TRIPOD_B));
+    }
+    for (const auto leg : robot::gait::TRIPOD_B) {
+        ++seen[servo::leg_index(leg)];
+        assert(!robot::gait::leg_in_tripod(leg, robot::gait::TRIPOD_A));
+    }
+    assert(robot::gait::leg_in_tripod(servo::Leg::FR, robot::gait::TRIPOD_A));
+    assert(robot::gait::leg_in_tripod(servo::Leg::ML, robot::gait::TRIPOD_A));
+    assert(robot::gait::leg_in_tripod(servo::Leg::RR, robot::gait::TRIPOD_A));
+    assert(robot::gait::leg_in_tripod(servo::Leg::FL, robot::gait::TRIPOD_B));
+    assert(robot::gait::leg_in_tripod(servo::Leg::MR, robot::gait::TRIPOD_B));
+    assert(robot::gait::leg_in_tripod(servo::Leg::RL, robot::gait::TRIPOD_B));
+    for (const auto count : seen) {
+        assert(count == 1);
+    }
+}
+
+void test_gait_pose_limits() {
+    const auto lifted_a = robot::lifted_pose(robot::gait::TRIPOD_A);
+    const auto lifted_b = robot::lifted_pose(robot::gait::TRIPOD_B);
+    assert(robot::pose_within_servo_limits(lifted_a, servo::DEFAULT_SERVOS));
+    assert(robot::pose_within_servo_limits(lifted_b, servo::DEFAULT_SERVOS));
+    assert(robot::pose_within_servo_limits(robot::walk_cycle_start_pose(), servo::DEFAULT_SERVOS));
+    assert(robot::pose_within_servo_limits(robot::walk_lift_pose(robot::gait::TRIPOD_A), servo::DEFAULT_SERVOS));
+    assert(robot::pose_within_servo_limits(robot::walk_lift_pose(robot::gait::TRIPOD_B), servo::DEFAULT_SERVOS));
+    assert(robot::pose_within_servo_limits(robot::walk_transfer_pose(robot::gait::TRIPOD_A), servo::DEFAULT_SERVOS));
+    assert(robot::pose_within_servo_limits(robot::walk_transfer_pose(robot::gait::TRIPOD_B), servo::DEFAULT_SERVOS));
+
+    for (const auto leg : robot::gait::TRIPOD_A) {
+        const auto &pose = lifted_a.legs[servo::leg_index(leg)];
+        assert(pose.coxa_deg == robot::STAND_LEG_POSE.coxa_deg);
+        assert(pose.femur_deg == robot::STAND_LEG_POSE.femur_deg + robot::gait::GAIT_LIFT_FEMUR_DELTA_DEG);
+        assert(pose.tibia_deg == robot::STAND_LEG_POSE.tibia_deg + robot::gait::GAIT_LIFT_TIBIA_DELTA_DEG);
+    }
+    for (const auto leg : robot::gait::TRIPOD_B) {
+        const auto &pose = lifted_b.legs[servo::leg_index(leg)];
+        assert(pose.coxa_deg == robot::STAND_LEG_POSE.coxa_deg);
+        assert(pose.femur_deg == robot::STAND_LEG_POSE.femur_deg + robot::gait::GAIT_LIFT_FEMUR_DELTA_DEG);
+        assert(pose.tibia_deg == robot::STAND_LEG_POSE.tibia_deg + robot::gait::GAIT_LIFT_TIBIA_DELTA_DEG);
+    }
+
+    for (const auto &config : servo::DEFAULT_SERVOS) {
+        if (config.joint != servo::Joint::Coxa) {
+            continue;
+        }
+        assert(robot::gait::forwardCoxa(config.leg) >= config.min_angle_deg);
+        assert(robot::gait::forwardCoxa(config.leg) <= config.max_angle_deg);
+        assert(robot::gait::backwardCoxa(config.leg) >= config.min_angle_deg);
+        assert(robot::gait::backwardCoxa(config.leg) <= config.max_angle_deg);
+        assert(std::fabs(robot::gait::forwardCoxa(config.leg)) == robot::gait::GAIT_COXA_SWING_DEG);
+        assert(std::fabs(robot::gait::backwardCoxa(config.leg)) == robot::gait::GAIT_COXA_SWING_DEG);
+    }
+}
+
+void test_march_returns_to_stand_after_two_cycles() {
+    robot::MotionController motion;
+    robot::GaitController gait;
+    uint64_t now_us = 0;
+    motion.reset(robot::STAND_POSE);
+    assert(gait.start_march(now_us, motion, servo::DEFAULT_SERVOS));
+    run_gait_until_idle(gait, motion, now_us);
+    assert(!gait.active());
+    assert(pose_close(motion.target_pose(), robot::STAND_POSE));
+    assert(pose_close(motion.current_pose(), robot::STAND_POSE));
+}
+
+void test_walk_cycle_returns_to_start_phase() {
+    robot::MotionController motion;
+    robot::GaitController gait;
+    uint64_t now_us = 0;
+    motion.reset(robot::STAND_POSE);
+    assert(gait.start_walk_demo(now_us, motion, servo::DEFAULT_SERVOS));
+
+    for (int i = 0; i < 1000; ++i) {
+        advance_gait(gait, motion, now_us);
+        if (gait.state() == robot::GaitState::WalkBLower && gait.cycle() == 0) {
+            assert(pose_close(motion.target_pose(), robot::walk_cycle_start_pose()));
+            return;
+        }
+    }
+    assert(false && "walk cycle end phase was not reached");
+}
+
+void test_walk_stop_returns_to_stand() {
+    robot::MotionController motion;
+    robot::GaitController gait;
+    uint64_t now_us = 0;
+    motion.reset(robot::STAND_POSE);
+    assert(gait.start_walk_demo(now_us, motion, servo::DEFAULT_SERVOS));
+    for (int i = 0; i < 50; ++i) {
+        advance_gait(gait, motion, now_us);
+    }
+    gait.stop(now_us, motion, servo::DEFAULT_SERVOS);
+    run_gait_until_idle(gait, motion, now_us);
+    assert(pose_close(motion.target_pose(), robot::STAND_POSE));
+    assert(pose_close(motion.current_pose(), robot::STAND_POSE));
+}
+
+void test_walk_demo_returns_to_stand_after_three_cycles() {
+    robot::MotionController motion;
+    robot::GaitController gait;
+    uint64_t now_us = 0;
+    motion.reset(robot::STAND_POSE);
+    assert(gait.start_walk_demo(now_us, motion, servo::DEFAULT_SERVOS));
+    run_gait_until_idle(gait, motion, now_us);
+    assert(!gait.active());
+    assert(pose_close(motion.target_pose(), robot::STAND_POSE));
+    assert(pose_close(motion.current_pose(), robot::STAND_POSE));
+}
+
 } // namespace
 
 int main() {
@@ -169,6 +349,7 @@ int main() {
     test_interpolation();
     test_increasing_and_decreasing_calibration();
     test_default_right_and_left_servo_calibration();
+    test_left_and_right_pulses_are_mirrored();
     test_angle_clamping();
     test_invalid_pulses();
     test_crc32();
@@ -177,6 +358,12 @@ int main() {
     test_uart_parser_invalid();
     test_phase_schedule();
     test_no_events_outside_frame();
+    test_tripod_groups();
+    test_gait_pose_limits();
+    test_march_returns_to_stand_after_two_cycles();
+    test_walk_cycle_returns_to_start_phase();
+    test_walk_stop_returns_to_stand();
+    test_walk_demo_returns_to_stand_after_three_cycles();
     std::cout << "All host logic tests passed\n";
     return 0;
 }
