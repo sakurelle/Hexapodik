@@ -1,487 +1,603 @@
-Работай с актуальным проектом:
+# Исправить race condition RC timestamps и arming
 
-RP2040RobotController
+Проанализируй текущий локальный проект `RP2040RobotController`.
 
-Нужно добавить первый демонстрационный алгоритм движения шестиногого
-робота.
+Я передал проект на ручной анализ, и найдена конкретная ошибка в RC input / DriveController.
 
-Текущая прошивка уже корректно:
+Не пытайся исправлять её увеличением deadzone или timeout. Сначала проверь описанный ниже сценарий непосредственно по текущему коду и исправь первопричину.
 
-- центрирует 18 серв;
-- переходит в STAND_POSE;
-- удерживает стойку;
-- зеркально управляет левой и правой сторонами;
-- непрерывно формирует сигналы через PIO.
+## Найденная проблема
 
-Эту работающую часть не ломать.
+В `src/main.cpp` основной цикл сейчас делает примерно так:
 
-Не менять:
+```cpp
+const uint64_t t = time_us_64();
 
-- PIO-драйвер;
-- DMA;
-- частоту серв 50 Гц;
-- распиновку;
-- ServoConfig;
-- калибровки;
-- UART GP0/GP1;
-- StartupController без необходимости.
+...
 
-Текущая STAND_POSE:
+const auto rc_snapshot = g_rc_input.read();
+const auto drive_state = g_drive_controller.update(rc_snapshot, t);
+```
 
-Coxa  = 0°
-Femur = -15°
-Tibia = +20°
+При этом GPIO IRQ RC-приёмника может сработать МЕЖДУ получением `t` и `g_rc_input.read()`.
 
-Нужно добавить отдельный верхнеуровневый модуль GaitController.
+В `src/input/rc_pwm_input.cpp` ISR при falling edge выполняет:
 
-Создать примерно:
+```cpp
+const uint64_t now_us = time_us_64();
 
-include/robot/gait_controller.hpp
-include/robot/gait_config.hpp
-src/robot/gait_controller.cpp
+...
 
-GaitController должен работать поверх существующего MotionController.
+channel->updated_us = now_us;
+```
 
-Он не должен:
+Таким образом возможна абсолютно реальная последовательность:
 
-- работать напрямую с PIO;
-- работать с pulse_us;
-- обращаться к GPIO;
-- использовать sleep_ms/sleep_us;
-- блокировать UART;
-- блокировать основной цикл.
+```text
+main t                  = 1 000 000 us
+IRQ updated_us          = 1 000 005 us
+snapshot.updated_us     = 1 000 005 us
+DriveController now_us  = 1 000 000 us
+```
 
-Все движения должны выполняться через существующий MotionController.
+Но `DriveController::signal_valid()` сейчас содержит:
 
---------------------------------------------------
-TRIPOD GROUPS
---------------------------------------------------
+```cpp
+now_us - snapshot.forward.updated_us <= timeout_us
+```
 
-Использовать классическую tripod-схему:
+и аналогично для steering.
 
-Tripod A:
-FR
-ML
-RR
+Поскольку это `uint64_t`, при `updated_us > now_us` происходит unsigned underflow, возраст превращается в огромное значение и RC signal на один main-loop ошибочно становится INVALID.
 
-Tripod B:
-FL
-MR
-RL
+Затем `update_arming()` сбрасывает:
 
-Не менять порядок Leg enum и существующую модель робота.
+```cpp
+state_.armed = false;
+neutral_seen_ = false;
+neutral_since_us_ = 0;
+```
 
---------------------------------------------------
-ЭТАП 1 — MARCH IN PLACE
---------------------------------------------------
+В результате 500 ms neutral arming постоянно начинает отсчитываться заново.
 
-Сначала реализовать безопасную демонстрацию подъёма ног без движения Coxa.
+Это полностью соответствует реальному наблюдению:
 
-Обычная нога:
+```text
+RC FWD   : 1504 us normalized: +0.00
+RC STEER : 1484 us normalized: +0.00
+AGE FWD  : 5 ms
+AGE STR  : 3 ms
 
-Coxa  = 0°
-Femur = -15°
-Tibia = +20°
+SIGNAL   : VALID
+ARM      : WAIT_NEUTRAL
 
-Начальная тестовая поднятая нога:
+EVENT: RC SIGNAL LOST
+```
 
-Coxa  = 0°
-Femur = -7°
-Tibia = +12°
-
-То есть относительно STAND_POSE:
-
-Femur += 8°
-Tibia -= 8°
-
-Эти значения вынести в gait_config.hpp:
-
-constexpr float GAIT_LIFT_FEMUR_DELTA_DEG = 8.0f;
-constexpr float GAIT_LIFT_TIBIA_DELTA_DEG = -8.0f;
-
-Не размножать числа по коду.
-
-Последовательность MARCH:
-
-1. Все ноги STAND.
-2. Поднять Tripod A.
-3. Удержать.
-4. Опустить Tripod A.
-5. Поднять Tripod B.
-6. Удержать.
-7. Опустить Tripod B.
-8. Вернуться в STAND.
-
-Сделать 2 полных цикла.
-
-Начальные времена:
-
-LIFT_TIME_MS = 300
-HOLD_TIME_MS = 200
-LOWER_TIME_MS = 300
-
-Всё должно быть неблокирующим state machine.
-
-После завершения MARCH робот остаётся в STAND_POSE.
-
---------------------------------------------------
-ЭТАП 2 — DEMO TRIPOD WALK
---------------------------------------------------
-
-Добавить демонстрационную открытую tripod gait.
-
-Это пока НЕ обратная кинематика.
-
-Использовать движение непосредственно в углах суставов.
-
-Начальная амплитуда Coxa:
-
-constexpr float GAIT_COXA_SWING_DEG = 8.0f;
-
-Добавить таблицу направления движения Coxa для каждой ноги:
-
-std::array<float, 6> COXA_FORWARD_SIGN
-
-По умолчанию:
-
-FR = +1
-MR = +1
-RR = +1
-RL = +1
-ML = +1
-FL = +1
-
-Это не ServoConfig inversion.
-
-Это только преобразование глобального направления движения робота
-в локальное направление движения Coxa конкретной ноги.
-
-В дальнейшем эту таблицу можно будет изменить после механического теста.
-
-Создать функции примерно:
-
-float forwardCoxa(Leg leg);
-float backwardCoxa(Leg leg);
-
-где:
-
-forward  = +GAIT_COXA_SWING_DEG * sign
-backward = -GAIT_COXA_SWING_DEG * sign
-
---------------------------------------------------
-ЦИКЛ ХОДЬБЫ
---------------------------------------------------
-
-Перед началом движения робот находится в STAND_POSE.
-
-Добавить PREPARE фазу:
-
-Tripod A:
-Coxa = backward
-
-Tripod B:
-Coxa = forward
-
-Все Femur/Tibia остаются в STAND.
-
-Переход выполнять плавно примерно за 500 мс.
-
-Далее один цикл:
-
-A_LIFT
-
-Tripod A:
-Femur = STAND + 8°
-Tibia = STAND - 8°
-
-Tripod B:
-остаётся на земле.
+При 1504/1484 оба стика точно находятся внутри deadband 1450...1550.
 
 ---
 
-A_TRANSFER
+# 1. Исправить порядок snapshot/time в main.cpp
 
-Tripod A поднят и перемещается:
+В RC ветке сначала сделать атомарный snapshot, а уже ПОСЛЕ него получить timestamp для его обработки.
 
-Coxa backward -> forward
+То есть вместо:
 
-Tripod B находится на земле и одновременно:
+```cpp
+const uint64_t t = time_us_64();
 
-Coxa forward -> backward
+...
 
-Это движение должно перемещать корпус вперёд.
+const auto rc_snapshot = g_rc_input.read();
+const auto drive_state = g_drive_controller.update(rc_snapshot, t);
+```
+
+для RC обработки использовать отдельный timestamp:
+
+```cpp
+const auto rc_snapshot = g_rc_input.read();
+const uint64_t rc_now_us = time_us_64();
+
+const auto drive_state =
+    g_drive_controller.update(rc_snapshot, rc_now_us);
+
+g_gait.update_drive(
+    rc_now_us,
+    g_motion,
+    g_servos,
+    drive_state.command,
+    startup_holding_stand
+);
+
+print_serial_dashboard(rc_now_us, drive_state);
+```
+
+Важно:
+
+`rc_now_us` должен быть получен ПОСЛЕ завершения `g_rc_input.read()`.
+
+Это гарантирует, что все timestamps, уже скопированные в snapshot, находятся не позже `rc_now_us`.
+
+Не обязательно менять общий `t`, используемый startup/motion/PIO. Можно использовать отдельный `rc_now_us` только для RC logic.
 
 ---
 
-A_LOWER
+# 2. Дополнительно сделать расчёт возраста устойчивым
 
-Tripod A:
-Femur -> STAND
-Tibia -> STAND
+Даже после исправления порядка вызовов нельзя оставлять потенциальный unsigned underflow.
 
-Coxa остаётся forward.
+Создать чистую helper-функцию:
 
----
+```cpp
+constexpr uint64_t rc_age_us(
+    uint64_t now_us,
+    uint64_t updated_us
+) {
+    return now_us >= updated_us
+        ? now_us - updated_us
+        : 0;
+}
+```
 
-B_LIFT
+Либо эквивалент.
 
-Tripod B поднять:
-
-Femur = STAND + 8°
-Tibia = STAND - 8°
-
----
-
-B_TRANSFER
-
-Tripod B поднят:
-
-Coxa backward -> forward
-
-Tripod A стоит на земле:
-
-Coxa forward -> backward
-
----
-
-B_LOWER
-
-Tripod B вернуть на землю.
-
-После этого состояние совпадает с началом следующего цикла.
-
-В демонстрационном режиме выполнить только:
-
-3 полных цикла.
-
-После третьего цикла:
-
-1. убедиться, что все шесть ног стоят на земле;
-2. плавно вернуть все Coxa в 0°;
-3. вернуть точную STAND_POSE;
-4. остановить gait;
-5. продолжать удерживать STAND_POSE.
-
---------------------------------------------------
-ВРЕМЕНА
---------------------------------------------------
-
-Начальные консервативные значения:
-
-PREPARE_MS  = 500
-LIFT_MS     = 250
-TRANSFER_MS = 500
-LOWER_MS    = 250
-FINISH_MS   = 600
-
-Все параметры вынести в gait_config.hpp.
-
-Не использовать sleep.
-
-Следующая фаза начинается только:
-
-- после завершения предыдущего движения MotionController;
-- либо по неблокирующей проверке времени, если это действительно нужно.
-
-Предпочтительно использовать MotionController::moving().
-
---------------------------------------------------
-БЕЗОПАСНОСТЬ
---------------------------------------------------
-
-Все генерируемые углы обязательно проверить через существующие ограничения
-ServoConfig.
-
-Никакой угол не должен выходить за:
-
--45° ... +45°
-
-при текущей временной калибровке.
-
-При ошибке gait должен:
-
-1. остановиться;
-2. плавно вернуться в STAND_POSE, если это безопасно;
-3. вывести диагностическое сообщение.
-
-DISABLE ALL должен иметь абсолютный приоритет.
-
-Если во время gait приходит DISABLE ALL:
-
-- GaitController немедленно прекращает работу;
-- существующая логика отключения серв работает как раньше.
-
-ALL CENTER и STAND также должны отменять активный gait.
-
---------------------------------------------------
-UART
---------------------------------------------------
-
-Добавить команды:
-
-MARCH
-WALK DEMO
-WALK STOP
-GAIT STATUS
-
-MARCH
-
-запускает два цикла марша на месте.
-
-WALK DEMO
-
-запускает 3 цикла демонстрационной tripod gait.
-
-WALK STOP
-
-безопасно завершает gait:
-сначала ставит все ноги на землю,
-затем возвращает STAND_POSE.
-
-GAIT STATUS
-
-выводит:
-
-MODE
-STATE
-CYCLE
-ACTIVE
+Использовать ЕЁ везде, где вычисляется возраст RC channel.
 
 Например:
 
-OK GAIT MODE WALK STATE A_TRANSFER CYCLE 2 ACTIVE 1
+```cpp
+bool DriveController::signal_valid(
+    const RcPwmSnapshot& snapshot,
+    uint64_t now_us
+) const {
+    const uint64_t timeout_us =
+        static_cast<uint64_t>(config::RC_SIGNAL_TIMEOUT_MS) * 1000ULL;
 
-Обновить HELP.
+    return snapshot.forward.has_pulse &&
+           snapshot.steer.has_pulse &&
+           rc_age_us(now_us, snapshot.forward.updated_us) <= timeout_us &&
+           rc_age_us(now_us, snapshot.steer.updated_us) <= timeout_us;
+}
+```
 
---------------------------------------------------
-АВТОДЕМОНСТРАЦИЯ
---------------------------------------------------
+Ту же функцию использовать для dashboard ages:
 
-Поскольку сейчас основная плата UART ещё не обязательна для тестирования,
-добавить compile-time настройку:
+```cpp
+state_.forward_age_ms =
+    rc_age_us(now_us, snapshot.forward.updated_us) / 1000ULL;
+```
 
-constexpr bool AUTO_DEMO_GAIT_ON_BOOT = false;
+и для steer.
 
-Также:
+Нигде не оставлять прямое:
 
-constexpr uint32_t AUTO_DEMO_DELAY_MS = 3000;
+```cpp
+now_us - updated_us
+```
 
-Если AUTO_DEMO_GAIT_ON_BOOT == true:
+для RC timestamps.
 
-1. выполнить обычный существующий startup;
-2. полностью перейти в HOLDING_STAND;
-3. удерживать STAND минимум 3 секунды;
-4. выполнить MARCH;
-5. вернуть STAND;
-6. подождать 2 секунды;
-7. выполнить WALK DEMO;
-8. после 3 циклов навсегда остаться в STAND.
+---
 
-Не повторять демонстрацию циклически.
+# 3. RcPwmInput не ломать
 
-По умолчанию оставить false.
+Текущая логика ISR правильная:
 
-Я самостоятельно смогу временно поставить true для демонстрации.
+```cpp
+if (GPIO_IRQ_EDGE_RISE)
+    rising_us = time_us_64();
 
---------------------------------------------------
-АРХИТЕКТУРА
---------------------------------------------------
+if (GPIO_IRQ_EDGE_FALL) {
+    width = now - rising;
+    pulse_us = width;
+    updated_us = now;
+}
+```
 
-main.cpp не должен содержать огромный switch gait-состояний.
+`updated_us` должен продолжать обновляться на КАЖДОМ корректном PWM frame, даже если pulse width не изменился.
 
-В main должно быть примерно:
+Например:
 
-g_gait.update(...)
+```text
+1504 us
+1504 us
+1504 us
+1504 us
+```
 
-MotionController остаётся ответственным только за интерполяцию углов.
+— это четыре новых валидных RC frames.
 
-GaitController отвечает за:
+Не сравнивать pulse width для определения свежести.
 
-- последовательность фаз;
-- tripod groups;
-- формирование RobotPose;
-- количество циклов.
+---
 
-PIO Servo Driver отвечает только за импульсы.
+# 4. Arming оставить простым
 
-Servo calibration отвечает только за angle -> pulse.
+Текущий принцип arming правильный.
 
-Не смешивать эти уровни.
+Neutral:
 
---------------------------------------------------
-ТЕСТЫ
---------------------------------------------------
+```cpp
+forward_neutral =
+    1450 <= raw_forward &&
+    raw_forward <= 1550;
 
-Добавить host-тесты чистой логики GaitController, насколько возможно.
+steer_neutral =
+    1450 <= raw_steer &&
+    raw_steer <= 1550;
+```
 
-Проверить:
+При:
 
-1. Tripod A = FR, ML, RR.
-2. Tripod B = FL, MR, RL.
-3. Нога никогда одновременно не относится к обеим группам.
-4. Все 6 ног входят ровно в одну группу.
-5. Lift pose не выходит за -45...+45.
-6. Coxa ±8° не выходит за диапазон.
-7. После полного gait cycle поза соответствует ожидаемой начальной фазе.
-8. После STOP итоговая цель = STAND_POSE.
-9. После DEMO из 3 циклов итоговая цель = STAND_POSE.
+```text
+RC FWD=1504
+RC STEER=1484
+```
 
---------------------------------------------------
-README
---------------------------------------------------
+оба должны быть `true`.
 
-Добавить описание:
+Логика:
 
-MARCH
-WALK DEMO
-WALK STOP
-GAIT STATUS
+```text
+VALID + оба neutral
+        ↓
+начать neutral timer
+        ↓
+500 ms непрерывно
+        ↓
+ARMED
+```
 
-Явно написать, что текущая gait:
+После `armed=true` выход стика из neutral НЕ должен разоружать управление.
 
-- open-loop;
-- работает в пространстве углов суставов;
-- предназначена для аппаратного теста;
-- ещё не использует inverse kinematics;
-- не гарантирует прямолинейное движение.
+Armed сбрасывается только при:
 
-Написать процедуру первого тестирования:
+* реальной потере RC signal;
+* reboot.
 
-1. Сначала поднять робота над поверхностью.
-2. Запустить MARCH.
-3. Проверить, что обе tripod-группы действительно поднимают лапы.
-4. Если движение Femur/Tibia направлено вниз, не запускать WALK DEMO.
-5. Исправить только gait lift deltas.
-6. После правильного MARCH запустить WALK DEMO в воздухе.
-7. Проверить направление Coxa.
-8. Если весь робот пытается двигаться назад, поменять глобальное направление
-   Coxa, а не ServoConfig.
-9. Только после этого поставить робота на пол.
-10. Первый наземный тест выполнить с доступным выключателем питания.
+Не менять эту архитектуру.
 
---------------------------------------------------
-ПРОВЕРКА
---------------------------------------------------
+---
 
-После реализации:
+# 5. Не увеличивать SIGNAL_TIMEOUT для маскировки ошибки
 
-- собрать firmware;
-- запустить host tests;
-- проверить git diff;
-- убедиться, что PIO-файлы не изменены;
-- убедиться, что GPIO не изменены;
-- убедиться, что ServoConfig зеркальной левой стороны не изменён.
+Оставить:
 
-В конце вывести:
+```text
+RC_SIGNAL_TIMEOUT_MS=120
+```
 
-1. Какие файлы созданы.
-2. Какие изменены.
-3. Как устроен GaitController.
-4. Полный список состояний.
-5. Параметры gait.
-6. Как запустить MARCH.
-7. Как запустить WALK DEMO.
-8. Как включить AUTO_DEMO_GAIT_ON_BOOT.
-9. Результат тестов.
-10. Результат сборки.
-11. Путь к UF2.
+120 ms для текущего теста достаточно.
+
+Не ставить 300/500/1000 ms только для того, чтобы скрыть race condition.
+
+Обязательно сохранить:
+
+```text
+120 ms = 120000 us
+```
+
+---
+
+# 6. Добавить диагностику arming непосредственно в dashboard
+
+Расширить `DriveControllerState`:
+
+```cpp
+bool forward_neutral;
+bool steer_neutral;
+uint32_t arm_elapsed_ms;
+```
+
+Dashboard должен показывать:
+
+```text
+SIGNAL      : VALID
+NEUTRAL FWD : YES
+NEUTRAL STR : YES
+ARM TIMER   : 347 / 500 ms
+ARM         : WAIT_NEUTRAL
+```
+
+После 500 ms:
+
+```text
+ARM TIMER   : 500 / 500 ms
+ARM         : READY
+```
+
+Если timer сбросился — это сразу видно.
+
+После READY и отклонения стика:
+
+```text
+NEUTRAL FWD : NO
+ARM         : READY
+ACTIVE      : YES
+```
+
+Это важно: после успешного arming neutral больше не требуется для движения.
+
+---
+
+# 7. Исправить вывод событий
+
+Сейчас `print_rc_events()` печатает обычные строки:
+
+```text
+EVENT: RC SIGNAL LOST
+EVENT: RC SIGNAL RESTORED
+```
+
+между обновлениями ANSI dashboard.
+
+Для диагностики лучше хранить последнее событие:
+
+```cpp
+enum class RcEvent {
+    None,
+    SignalLost,
+    SignalRestored,
+    Armed
+};
+```
+
+или строку + timestamp.
+
+Dashboard должен содержать одну строку:
+
+```text
+LAST EVENT : RC SIGNAL RESTORED, 1.4 s ago
+```
+
+или:
+
+```text
+LAST EVENT : RC ARMED, 0.8 s ago
+```
+
+Не оставлять старую строку:
+
+```text
+EVENT: RC SIGNAL LOST
+```
+
+под dashboard так, будто ошибка активна сейчас.
+
+События создавать только на реальном transition.
+
+Не делать `printf` на каждом main-loop.
+
+---
+
+# 8. Добавить regression test именно на найденную гонку
+
+Текущие tests не покрывают ситуацию:
+
+```text
+updated_us > now_us
+```
+
+Добавить тест:
+
+```cpp
+const RcPwmSnapshot snapshot = {
+    .forward = {
+        .pulse_us = 1500,
+        .updated_us = 1'000'005,
+        .has_pulse = true
+    },
+    .steer = {
+        .pulse_us = 1500,
+        .updated_us = 1'000'003,
+        .has_pulse = true
+    }
+};
+
+const uint64_t now_us = 1'000'000;
+```
+
+`rc_age_us()` должен вернуть:
+
+```text
+0
+```
+
+а не unsigned overflow.
+
+Signal не должен ошибочно становиться INVALID.
+
+Этот тест нужен именно как regression test найденной аппаратной race condition.
+
+---
+
+# 9. Добавить тест непрерывного реального PWM
+
+Смоделировать RC с периодом около 20 ms.
+
+Например:
+
+```text
+0 ms      pulse 1500/1500
+20 ms     pulse 1501/1499
+40 ms     pulse 1500/1500
+...
+500 ms
+```
+
+Все samples внутри deadband.
+
+После 500 ms:
+
+```text
+armed=true
+```
+
+Периодическое обновление `updated_us` НЕ должно сбрасывать neutral timer.
+
+---
+
+# 10. Добавить test transient race every frame
+
+Смоделировать ситуацию, когда snapshot получил timestamp на несколько микросекунд позже переданного `now_us`.
+
+Например на нескольких итерациях:
+
+```text
+main now=100000
+snapshot updated=100003
+
+main now=120000
+snapshot updated=120004
+
+main now=140000
+snapshot updated=140002
+```
+
+Это не должно:
+
+* генерировать SIGNAL LOST;
+* сбрасывать arming;
+* создавать огромный age.
+
+---
+
+# 11. Проверить существующие tests
+
+Текущий `test_rc_failsafe_and_arming()` в основном использует:
+
+```cpp
+snapshot.updated_us == now_us
+```
+
+поэтому найденный race condition он не обнаруживал.
+
+Существующие тесты не удалять.
+
+Дополнить их новыми случаями.
+
+---
+
+# 12. После исправления проверить всю цепочку
+
+При текущих реальных значениях:
+
+```text
+FWD ≈ 1504
+STEER ≈ 1484
+```
+
+ожидается:
+
+```text
+SIGNAL      : VALID
+NEUTRAL FWD : YES
+NEUTRAL STR : YES
+
+ARM TIMER:
+0 → 100 → 200 → 300 → 400 → 500 ms
+
+ARM:
+WAIT_NEUTRAL → READY
+```
+
+Затем при отклонении Forward, например до 1800:
+
+```text
+SIGNAL      : VALID
+ARM         : READY
+ACTIVE      : YES
+normalized forward > 0
+DRIVE L/R != 0
+```
+
+и `GaitController` должен выйти из `IDLE`.
+
+---
+
+# 13. Не менять остальную систему
+
+Не изменять:
+
+* PIO servo driver;
+* PIO programs;
+* DMA;
+* 50 Hz servo frames;
+* servo GPIO;
+* GP0/GP1;
+* ServoConfig;
+* зеркальную калибровку сторон;
+* STAND_POSE;
+* gait lift parameters;
+* gait swing parameters;
+* RC deadband 50 us;
+* RC range 900...2100;
+* RC valid range 800...2200;
+* RC minimum speed;
+* differential steering.
+
+Не возвращать автоматическую RC calibration.
+
+---
+
+# 14. Дополнительно проверить следующий потенциальный недостаток
+
+После исправления arming проверь текущую реализацию minimum speed.
+
+Сейчас `apply_deadzone_and_speed()` задаёт минимум `RC_MIN_SPEED=0.30`, но сами:
+
+```cpp
+command.forward
+command.turn
+```
+
+могут оставаться практически нулевыми сразу за deadband.
+
+Далее GaitController умножает swing amplitude на magnitude `left/right command`.
+
+Из-за этого возможна ситуация:
+
+```text
+speed ≈ 0.30
+но Coxa swing ≈ почти 0°
+```
+
+то есть робот начинает быстрый цикл подъёма ног, но почти не делает поступательного шага.
+
+Пока НЕ переделывай эту часть автоматически, если она не мешает текущему тесту.
+
+Но в итоговом отчёте явно напиши, существует ли эта проблема в текущей реализации и какие фактические значения Coxa swing будут:
+
+* сразу после выхода за deadband;
+* при 25% стика;
+* при 50% стика;
+* при 100% стика.
+
+Сначала нужно добиться корректного ARMED и запуска gait.
+
+---
+
+# 15. Собрать и проверить
+
+После изменений:
+
+1. Запустить `generate_robot_params.py --self-test`.
+2. Собрать host tests.
+3. Запустить все host tests.
+4. Собрать firmware.
+5. Проверить UF2.
+6. Проверить git diff.
+
+В конце выведи:
+
+1. Подтвердился ли описанный race condition.
+2. Где именно происходил unsigned underflow.
+3. Какие строки `main.cpp` изменены.
+4. Как теперь рассчитывается RC age.
+5. Какие regression tests добавлены.
+6. Почему раньше `WAIT_NEUTRAL` не доходил до READY.
+7. Есть ли проблема minimum-speed / tiny-step, описанная выше.
+8. Результат host tests.
+9. Результат firmware build.
+10. Путь к UF2.

@@ -10,6 +10,12 @@ namespace storage {
 constexpr uint32_t CONFIG_MAGIC = 0x48585044u; // HXPD
 constexpr uint16_t CONFIG_VERSION = 1;
 constexpr uint32_t FLASH_SECTOR_SIZE_BYTES = 4096;
+#ifdef PICO_FLASH_SIZE_BYTES
+constexpr uint32_t TARGET_FLASH_SIZE_BYTES = PICO_FLASH_SIZE_BYTES;
+#else
+constexpr uint32_t TARGET_FLASH_SIZE_BYTES = 2u * 1024u * 1024u;
+#endif
+constexpr uint32_t SERVO_CONFIG_FLASH_OFFSET = TARGET_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE_BYTES;
 
 struct StoredConfigHeader {
     uint32_t magic;

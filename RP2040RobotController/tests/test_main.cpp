@@ -1,7 +1,10 @@
 #include "protocol/uart_protocol.hpp"
+#include "control/drive_controller.hpp"
+#include "input/rc_pwm_input.hpp"
 #include "robot/gait_controller.hpp"
 #include "robot/motion_controller.hpp"
 #include "robot/robot_model.hpp"
+#include "robot_params.hpp"
 #include "servo/servo_calibration.hpp"
 #include "servo/servo_frame_scheduler.hpp"
 #include "storage/config_storage.hpp"
@@ -27,6 +30,10 @@ servo::ServoConfig temp_config(uint16_t minus45 = 2000, uint16_t center = 1500, 
         45.0f,
         true
     };
+}
+
+bool near(float a, float b, float epsilon = 0.001f) {
+    return std::fabs(a - b) <= epsilon;
 }
 
 void test_angle_to_pulse_endpoints() {
@@ -212,6 +219,13 @@ bool pose_close(const robot::RobotPose &a, const robot::RobotPose &b) {
     return true;
 }
 
+control::RcPwmSnapshot rc_snapshot(uint16_t forward_us, uint16_t steer_us, uint64_t now_us) {
+    return control::RcPwmSnapshot{
+        control::RcChannelSnapshot{forward_us, now_us, true},
+        control::RcChannelSnapshot{steer_us, now_us, true}
+    };
+}
+
 void advance_gait(robot::GaitController &gait, robot::MotionController &motion, uint64_t &now_us) {
     now_us += 20000;
     gait.update(now_us, motion, servo::DEFAULT_SERVOS, true);
@@ -281,9 +295,227 @@ void test_gait_pose_limits() {
         assert(robot::gait::forwardCoxa(config.leg) <= config.max_angle_deg);
         assert(robot::gait::backwardCoxa(config.leg) >= config.min_angle_deg);
         assert(robot::gait::backwardCoxa(config.leg) <= config.max_angle_deg);
-        assert(std::fabs(robot::gait::forwardCoxa(config.leg)) == robot::gait::GAIT_COXA_SWING_DEG);
-        assert(std::fabs(robot::gait::backwardCoxa(config.leg)) == robot::gait::GAIT_COXA_SWING_DEG);
+        assert(near(std::fabs(robot::gait::forwardCoxa(config.leg)), robot::gait::GAIT_COXA_SWING_MAX_DEG));
+        assert(near(std::fabs(robot::gait::backwardCoxa(config.leg)), robot::gait::GAIT_COXA_SWING_MAX_DEG));
     }
+}
+
+void test_robot_params_generated_values() {
+    assert(config::CONTROL_MODE == config::ControlInputMode::RC_PWM);
+    assert(config::RC_MIN_US == 900);
+    assert(config::RC_CENTER_US == 1500);
+    assert(config::RC_MAX_US == 2100);
+    assert(config::RC_VALID_MIN_US == 800);
+    assert(config::RC_VALID_MAX_US == 2200);
+    assert(config::RC_DEADBAND_US == 50);
+    assert(!config::RC_FORWARD_REVERSED);
+    assert(!config::RC_STEER_REVERSED);
+    assert(config::RC_ARM_NEUTRAL_MS == 500);
+    assert(config::SERIAL_DASHBOARD);
+    assert(config::SERIAL_DASHBOARD_RATE_HZ == 10);
+    assert(config::SERIAL_DASHBOARD_ANSI);
+    assert(config::GAIT_LIFT_FEMUR_DELTA_DEG == 12.0f);
+    assert(config::GAIT_LIFT_TIBIA_DELTA_DEG == -15.0f);
+}
+
+void test_rc_normalization() {
+    assert(near(control::normalize_rc_channel_fixed(900, false), -1.0f));
+    assert(near(control::normalize_rc_channel_fixed(1500, false), 0.0f));
+    assert(near(control::normalize_rc_channel_fixed(2100, false), 1.0f));
+    assert(near(control::normalize_rc_channel_fixed(800, false), -1.0f));
+    assert(near(control::normalize_rc_channel_fixed(2200, false), 1.0f));
+
+    assert(near(control::normalize_rc_channel_fixed(1450, false), 0.0f));
+    assert(near(control::normalize_rc_channel_fixed(1550, false), 0.0f));
+    assert(near(control::normalize_rc_channel_fixed(1470, false), 0.0f));
+    assert(near(control::normalize_rc_channel_fixed(1535, false), 0.0f));
+    assert(control::normalize_rc_channel_fixed(1449, false) < 0.0f);
+    assert(control::normalize_rc_channel_fixed(1551, false) > 0.0f);
+
+    assert(near(control::normalize_rc_channel_fixed(2100, true), -1.0f));
+    assert(near(control::normalize_rc_channel_fixed(900, true), 1.0f));
+    assert(near(control::normalize_rc_channel_fixed(1538, false), 0.0f));
+    assert(near(control::normalize_rc_channel_fixed(1660, false), 0.20f));
+
+    assert(control::rc_pulse_neutral(1450));
+    assert(control::rc_pulse_neutral(1550));
+    assert(control::rc_pulse_neutral(1470));
+    assert(control::rc_pulse_neutral(1535));
+    assert(!control::rc_pulse_neutral(1449));
+    assert(!control::rc_pulse_neutral(1551));
+}
+
+void test_no_radial_deadzone_and_min_speed() {
+    auto command = control::apply_deadzone_and_speed(0.0f, 0.0f, 0.0f, 0.30f, 1.00f);
+    assert(!command.active);
+    assert(command.speed == 0.0f);
+
+    command = control::apply_deadzone_and_speed(0.0f, 0.001f, 0.0f, 0.30f, 1.00f);
+    assert(command.active);
+    assert(command.forward > 0.0f);
+    assert(command.speed >= 0.30f);
+
+    command = control::apply_deadzone_and_speed(0.0f, 1.0f, 0.0f, 0.30f, 1.00f);
+    assert(command.active);
+    assert(near(command.forward, 1.0f));
+    assert(near(command.speed, 1.0f));
+}
+
+void test_diagonal_and_differential_mixing() {
+    auto command = control::apply_deadzone_and_speed(1.0f, 1.0f, 0.0f, 0.30f, 1.00f);
+    assert(command.active);
+    assert(command.forward <= 1.0f);
+    assert(command.turn <= 1.0f);
+    assert(near(std::sqrt(command.forward * command.forward + command.turn * command.turn), 1.0f));
+
+    auto mix = control::differential_mix(1.0f, 0.0f, 1.0f);
+    assert(near(mix.left, 1.0f));
+    assert(near(mix.right, 1.0f));
+
+    mix = control::differential_mix(-1.0f, 0.0f, 1.0f);
+    assert(near(mix.left, -1.0f));
+    assert(near(mix.right, -1.0f));
+
+    mix = control::differential_mix(0.0f, -1.0f, 1.0f);
+    assert(near(mix.left, -1.0f));
+    assert(near(mix.right, 1.0f));
+
+    mix = control::differential_mix(0.0f, 1.0f, 1.0f);
+    assert(near(mix.left, 1.0f));
+    assert(near(mix.right, -1.0f));
+
+    mix = control::differential_mix(1.0f, 1.0f, 1.0f);
+    assert(near(mix.left, 1.0f));
+    assert(near(mix.right, 0.0f));
+}
+
+void test_rc_failsafe_and_arming() {
+    control::DriveController drive;
+    auto state = drive.update(rc_snapshot(1500, 1500, 0), 0);
+    assert(state.signal_valid);
+    assert(state.forward_neutral);
+    assert(state.steer_neutral);
+    assert(!state.armed);
+    assert(state.waiting_neutral);
+    assert(state.arm_elapsed_ms == 0);
+    assert(!state.command.active);
+
+    state = drive.update(rc_snapshot(1500, 1500, 499000), 499000);
+    assert(state.signal_valid);
+    assert(!state.armed);
+    assert(state.waiting_neutral);
+    assert(state.arm_elapsed_ms == 499);
+
+    state = drive.update(rc_snapshot(1500, 1500, 500000), 500000);
+    assert(state.signal_valid);
+    assert(state.armed);
+    assert(state.arm_elapsed_ms == 500);
+    assert(!state.command.active);
+
+    state = drive.update(rc_snapshot(2100, 1500, 520000), 520000);
+    assert(state.signal_valid);
+    assert(!state.forward_neutral);
+    assert(state.steer_neutral);
+    assert(state.armed);
+    assert(state.arm_elapsed_ms == 500);
+    assert(state.command.active);
+    assert(state.command.forward > 0.0f);
+
+    state = drive.update(rc_snapshot(2100, 1500, 520000), 650001);
+    assert(!state.signal_valid);
+    assert(!state.armed);
+    assert(!state.command.active);
+
+    state = drive.update(rc_snapshot(1500, 1500, 660000), 660000);
+    assert(state.signal_valid);
+    assert(!state.armed);
+    assert(state.waiting_neutral);
+    assert(state.arm_elapsed_ms == 0);
+
+    state = drive.update(rc_snapshot(1500, 1500, 1159000), 1159000);
+    assert(!state.armed);
+    assert(state.arm_elapsed_ms == 499);
+
+    state = drive.update(rc_snapshot(1500, 1500, 1160000), 1160000);
+    assert(state.armed);
+    assert(state.arm_elapsed_ms == 500);
+}
+
+void test_arming_timer_resets_when_stick_leaves_neutral() {
+    control::DriveController drive;
+    auto state = drive.update(rc_snapshot(1500, 1500, 0), 0);
+    assert(!state.armed);
+
+    state = drive.update(rc_snapshot(1551, 1500, 250000), 250000);
+    assert(state.signal_valid);
+    assert(!state.armed);
+    assert(state.waiting_neutral);
+
+    state = drive.update(rc_snapshot(1500, 1500, 260000), 260000);
+    assert(!state.armed);
+
+    state = drive.update(rc_snapshot(1500, 1500, 759000), 759000);
+    assert(!state.armed);
+
+    state = drive.update(rc_snapshot(1500, 1500, 760000), 760000);
+    assert(state.armed);
+}
+
+void test_invalid_pulse_rejection_helper() {
+    assert(input::rc_pulse_width_valid(800, config::RC_VALID_MIN_US, config::RC_VALID_MAX_US));
+    assert(input::rc_pulse_width_valid(2200, config::RC_VALID_MIN_US, config::RC_VALID_MAX_US));
+    assert(!input::rc_pulse_width_valid(799, config::RC_VALID_MIN_US, config::RC_VALID_MAX_US));
+    assert(!input::rc_pulse_width_valid(2201, config::RC_VALID_MIN_US, config::RC_VALID_MAX_US));
+}
+
+void test_rc_age_saturates_future_timestamp() {
+    assert(control::rc_age_us(1000000, 1000005) == 0);
+    assert(control::rc_age_us(1000000, 999995) == 5);
+
+    control::RcPwmSnapshot snapshot = rc_snapshot(1500, 1500, 1000005);
+    snapshot.steer.updated_us = 1000003;
+
+    control::DriveController drive;
+    const auto state = drive.update(snapshot, 1000000);
+    assert(state.signal_valid);
+    assert(state.forward_age_ms == 0);
+    assert(state.steer_age_ms == 0);
+    assert(state.forward_neutral);
+    assert(state.steer_neutral);
+    assert(!state.armed);
+}
+
+void test_real_pwm_refresh_does_not_reset_neutral_timer() {
+    control::DriveController drive;
+    control::DriveControllerState state{};
+    for (uint64_t now_us = 0; now_us <= 500000; now_us += 20000) {
+        const uint16_t forward = (now_us / 20000) % 2 == 0 ? 1500 : 1501;
+        const uint16_t steer = (now_us / 20000) % 2 == 0 ? 1500 : 1499;
+        state = drive.update(rc_snapshot(forward, steer, now_us), now_us);
+        assert(state.signal_valid);
+        assert(state.forward_neutral);
+        assert(state.steer_neutral);
+    }
+    assert(state.armed);
+    assert(state.arm_elapsed_ms == 500);
+}
+
+void test_transient_future_timestamp_race_each_frame() {
+    control::DriveController drive;
+    control::DriveControllerState state{};
+    for (uint64_t i = 0; i <= 25; ++i) {
+        const uint64_t now_us = 100000 + i * 20000;
+        auto snapshot = rc_snapshot(1504, 1484, now_us + 1 + (i % 5));
+        snapshot.steer.updated_us = now_us + 1 + (i % 3);
+        state = drive.update(snapshot, now_us);
+        assert(state.signal_valid);
+        assert(state.forward_age_ms == 0);
+        assert(state.steer_age_ms == 0);
+        assert(state.forward_neutral);
+        assert(state.steer_neutral);
+    }
+    assert(state.armed);
+    assert(state.arm_elapsed_ms == 500);
 }
 
 void test_march_returns_to_stand_after_two_cycles() {
@@ -358,6 +590,16 @@ int main() {
     test_uart_parser_invalid();
     test_phase_schedule();
     test_no_events_outside_frame();
+    test_robot_params_generated_values();
+    test_rc_normalization();
+    test_no_radial_deadzone_and_min_speed();
+    test_diagonal_and_differential_mixing();
+    test_rc_failsafe_and_arming();
+    test_arming_timer_resets_when_stick_leaves_neutral();
+    test_invalid_pulse_rejection_helper();
+    test_rc_age_saturates_future_timestamp();
+    test_real_pwm_refresh_does_not_reset_neutral_timer();
+    test_transient_future_timestamp_race_each_frame();
     test_tripod_groups();
     test_gait_pose_limits();
     test_march_returns_to_stand_after_two_cycles();

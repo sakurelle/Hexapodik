@@ -31,6 +31,16 @@
 
 UART0: TX GP0, RX GP1, 115200 baud, 8N1, уровни 3,3 В TTL.
 
+Во временном режиме RC-управления `CONTROL_MODE=RC_PWM` эти же пины используются не как UART, а как входы PWM от приемника:
+
+```text
+GP0 = forward/back
+GP1 = left/right
+GND receiver = GND RP2040
+```
+
+GPIO RP2040 работают с логикой 3,3 В. Перед прямым подключением нужно убедиться, что PWM-сигнал приемника не превышает допустимый уровень RP2040. Если приемник выдает 5 В logic, используйте level shifter или резистивный делитель.
+
 GP16 не используется: на Waveshare RP2040-Zero он занят встроенным WS2812.
 
 ## Питание
@@ -184,6 +194,84 @@ OK GAIT MODE WALK STATE A_TRANSFER CYCLE 2 ACTIVE 1
 ```
 
 Автодемо по умолчанию выключено. Для включения нужно собрать прошивку с `AUTO_DEMO_GAIT_ON_BOOT = true` в `include/robot/gait_config.hpp`: после перехода startup-автомата в `HOLDING_STAND` контроллер ждет 3000 мс, выполняет `MARCH`, возвращается в стойку, ждет 2000 мс, выполняет `WALK DEMO` и остается в стойке.
+
+## RC PWM-управление
+
+Текущий режим по умолчанию задается в `config/robot_params.txt`:
+
+```text
+CONTROL_MODE=RC_PWM
+RC_MIN_US=900
+RC_CENTER_US=1500
+RC_MAX_US=2100
+RC_VALID_MIN_US=800
+RC_VALID_MAX_US=2200
+RC_DEADBAND_US=50
+RC_SIGNAL_TIMEOUT_MS=120
+RC_ARM_NEUTRAL_MS=500
+SERIAL_DASHBOARD=true
+SERIAL_DASHBOARD_RATE_HZ=10
+SERIAL_DASHBOARD_ANSI=true
+```
+
+При `RC_PWM` прошивка не инициализирует UART0 на GP0/GP1. Оба канала читаются через GPIO IRQ по rising/falling edge: на rising edge сохраняется `time_us_64()`, на falling edge вычисляется ширина импульса, проверяется диапазон `RC_VALID_MIN_US..RC_VALID_MAX_US`, и только последнее корректное значение передается в основной цикл. Ожиданий импульса, sleep или busy wait в основном цикле нет.
+
+RC-калибровки во Flash больше нет: прошивка использует только build-time значения из `config/robot_params.txt`. Валидный входной диапазон `800..2200` мкс нужен для отбраковки импульсов приемника, а нормализация перед расчетом команды зажимает raw-значение в `900..2100` мкс.
+
+Нейтраль фиксированная: `1450..1550` мкс всегда дает ровно `0`. Ниже нейтрали канал нормализуется линейно как `900 -> -1`, `1450 -> 0`; выше нейтрали как `1550 -> 0`, `2100 -> +1`. `RC_FORWARD_REVERSED` и `RC_STEER_REVERSED` применяются после нормализации. Радиальная RC-deadzone не используется; нулевую команду дает только фиксированная нейтральная зона канала.
+
+Перед arming оба канала должны быть валидны и оба стика должны находиться в нейтрали непрерывно `RC_ARM_NEUTRAL_MS=500` мс. На `499` мс состояние еще не armed, на `500` мс становится armed. Если стик вышел из нейтрали до завершения ожидания, таймер запускается заново.
+
+USB CDC используется для диагностического dashboard. При `SERIAL_DASHBOARD=true` вывод ограничен `SERIAL_DASHBOARD_RATE_HZ`. ANSI-режим сначала очищает экран через `ESC[2J ESC[H`, затем обновляет фиксированный многострочный экран через `ESC[H` и очистку строк `ESC[K`:
+
+```text
+RP2040 HEXAPOD RC CONTROL
+----------------------------------------
+RC FWD   : 1500 us   normalized: +0.00
+RC STEER : 1500 us   normalized: +0.00
+AGE FWD  :    0 ms
+AGE STR  :    0 ms
+
+SIGNAL   : VALID
+ARM      : READY
+ACTIVE   : NO
+SPEED    : 0.00
+
+DRIVE L  : +0.00
+DRIVE R  : +0.00
+
+GAIT     : STAND
+----------------------------------------
+```
+
+Если `SERIAL_DASHBOARD_ANSI=false`, прошивка печатает одну строку через `\r` без `\n`, с padding в конце строки. Отдельные события пишутся только при изменении состояния:
+
+```text
+EVENT: RC SIGNAL RESTORED
+EVENT: RC SIGNAL LOST
+EVENT: RC ARMED
+ARM: WAIT_NEUTRAL
+```
+
+Steering реализован как differential mixing:
+
+```text
+left_command  = forward + turn
+right_command = forward - turn
+```
+
+Затем значения нормализуются так, чтобы абсолютное значение не превышало `1.0`. Левая сторона: `FL`, `ML`, `RL`; правая сторона: `FR`, `MR`, `RR`. Это не меняет tripod-группы: `A = FR + ML + RR`, `B = FL + MR + RL`.
+
+Failsafe: если любой канал не обновлялся дольше `RC_SIGNAL_TIMEOUT_MS=120` мс, новые drive-команды не принимаются, `armed=false`, походка безопасно доводит текущую половину шага до земли и возвращается в `STAND_POSE`. После восстановления сигнала снова требуется 500 мс нейтрали; Servo PWM при этом не отключается.
+
+Высота подъема ноги задается здесь же:
+
+```text
+GAIT_LIFT_FEMUR_DELTA_DEG=12
+GAIT_LIFT_TIBIA_DELTA_DEG=-15
+```
+
+Файл `config/robot_params.txt` является build-time конфигурацией. CMake перед сборкой генерирует `build/generated/robot_params.hpp`; на RP2040 файл `.txt` во время работы не читается.
 
 ## Сборка
 

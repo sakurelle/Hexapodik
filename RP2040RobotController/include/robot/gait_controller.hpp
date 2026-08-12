@@ -1,5 +1,6 @@
 #pragma once
 
+#include "control/drive_controller.hpp"
 #include "robot/gait_config.hpp"
 #include "robot/motion_controller.hpp"
 #include "servo/servo_config.hpp"
@@ -13,6 +14,7 @@ enum class GaitMode {
     Idle,
     March,
     WalkDemo,
+    RCDrive,
     Stopping,
     Error
 };
@@ -52,6 +54,10 @@ public:
     void update(uint64_t now_us, MotionController &motion,
                 const std::array<servo::ServoConfig, servo::SERVO_COUNT> &servos,
                 bool startup_holding_stand);
+    void update_drive(uint64_t now_us, MotionController &motion,
+                      const std::array<servo::ServoConfig, servo::SERVO_COUNT> &servos,
+                      const control::DriveCommand &command,
+                      bool startup_holding_stand);
 
     GaitMode mode() const { return mode_; }
     GaitState state() const { return state_; }
@@ -59,6 +65,7 @@ public:
     bool active() const { return mode_ != GaitMode::Idle; }
     bool error() const { return mode_ == GaitMode::Error; }
     const char *diagnostic() const { return diagnostic_; }
+    control::DriveMix drive_mix() const { return drive_mix_; }
 
 private:
     enum class AutoDemoState {
@@ -87,7 +94,13 @@ private:
     uint64_t state_entered_us_ = 0;
     uint8_t cycle_ = 0;
     bool stop_requested_ = false;
+    bool rc_finish_stop_requested_ = false;
     const char *diagnostic_ = "OK";
+    control::DriveCommand drive_command_{};
+    control::DriveMix drive_mix_{};
+    uint32_t rc_lift_ms_ = 250;
+    uint32_t rc_transfer_ms_ = 500;
+    uint32_t rc_lower_ms_ = 250;
     AutoDemoState auto_state_ = AutoDemoState::WaitingForStand;
     uint64_t auto_entered_us_ = 0;
 };

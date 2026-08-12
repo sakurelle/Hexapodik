@@ -6,6 +6,8 @@ namespace board {
 
 constexpr uint8_t UART0_TX_GPIO = 0;
 constexpr uint8_t UART0_RX_GPIO = 1;
+constexpr uint8_t RC_FORWARD_GPIO = 0;
+constexpr uint8_t RC_STEER_GPIO = 1;
 constexpr uint8_t WS2812_GPIO = 16;
 
 constexpr uint8_t PIO_GROUP_A_FIRST_GPIO = 2;
