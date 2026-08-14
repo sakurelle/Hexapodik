@@ -1,0 +1,603 @@
+# Исправить race condition RC timestamps и arming
+
+Проанализируй текущий локальный проект `RP2040RobotController`.
+
+Я передал проект на ручной анализ, и найдена конкретная ошибка в RC input / DriveController.
+
+Не пытайся исправлять её увеличением deadzone или timeout. Сначала проверь описанный ниже сценарий непосредственно по текущему коду и исправь первопричину.
+
+## Найденная проблема
+
+В `src/main.cpp` основной цикл сейчас делает примерно так:
+
+```cpp
+const uint64_t t = time_us_64();
+
+...
+
+const auto rc_snapshot = g_rc_input.read();
+const auto drive_state = g_drive_controller.update(rc_snapshot, t);
+```
+
+При этом GPIO IRQ RC-приёмника может сработать МЕЖДУ получением `t` и `g_rc_input.read()`.
+
+В `src/input/rc_pwm_input.cpp` ISR при falling edge выполняет:
+
+```cpp
+const uint64_t now_us = time_us_64();
+
+...
+
+channel->updated_us = now_us;
+```
+
+Таким образом возможна абсолютно реальная последовательность:
+
+```text
+main t                  = 1 000 000 us
+IRQ updated_us          = 1 000 005 us
+snapshot.updated_us     = 1 000 005 us
+DriveController now_us  = 1 000 000 us
+```
+
+Но `DriveController::signal_valid()` сейчас содержит:
+
+```cpp
+now_us - snapshot.forward.updated_us <= timeout_us
+```
+
+и аналогично для steering.
+
+Поскольку это `uint64_t`, при `updated_us > now_us` происходит unsigned underflow, возраст превращается в огромное значение и RC signal на один main-loop ошибочно становится INVALID.
+
+Затем `update_arming()` сбрасывает:
+
+```cpp
+state_.armed = false;
+neutral_seen_ = false;
+neutral_since_us_ = 0;
+```
+
+В результате 500 ms neutral arming постоянно начинает отсчитываться заново.
+
+Это полностью соответствует реальному наблюдению:
+
+```text
+RC FWD   : 1504 us normalized: +0.00
+RC STEER : 1484 us normalized: +0.00
+AGE FWD  : 5 ms
+AGE STR  : 3 ms
+
+SIGNAL   : VALID
+ARM      : WAIT_NEUTRAL
+
+EVENT: RC SIGNAL LOST
+```
+
+При 1504/1484 оба стика точно находятся внутри deadband 1450...1550.
+
+---
+
+# 1. Исправить порядок snapshot/time в main.cpp
+
+В RC ветке сначала сделать атомарный snapshot, а уже ПОСЛЕ него получить timestamp для его обработки.
+
+То есть вместо:
+
+```cpp
+const uint64_t t = time_us_64();
+
+...
+
+const auto rc_snapshot = g_rc_input.read();
+const auto drive_state = g_drive_controller.update(rc_snapshot, t);
+```
+
+для RC обработки использовать отдельный timestamp:
+
+```cpp
+const auto rc_snapshot = g_rc_input.read();
+const uint64_t rc_now_us = time_us_64();
+
+const auto drive_state =
+    g_drive_controller.update(rc_snapshot, rc_now_us);
+
+g_gait.update_drive(
+    rc_now_us,
+    g_motion,
+    g_servos,
+    drive_state.command,
+    startup_holding_stand
+);
+
+print_serial_dashboard(rc_now_us, drive_state);
+```
+
+Важно:
+
+`rc_now_us` должен быть получен ПОСЛЕ завершения `g_rc_input.read()`.
+
+Это гарантирует, что все timestamps, уже скопированные в snapshot, находятся не позже `rc_now_us`.
+
+Не обязательно менять общий `t`, используемый startup/motion/PIO. Можно использовать отдельный `rc_now_us` только для RC logic.
+
+---
+
+# 2. Дополнительно сделать расчёт возраста устойчивым
+
+Даже после исправления порядка вызовов нельзя оставлять потенциальный unsigned underflow.
+
+Создать чистую helper-функцию:
+
+```cpp
+constexpr uint64_t rc_age_us(
+    uint64_t now_us,
+    uint64_t updated_us
+) {
+    return now_us >= updated_us
+        ? now_us - updated_us
+        : 0;
+}
+```
+
+Либо эквивалент.
+
+Использовать ЕЁ везде, где вычисляется возраст RC channel.
+
+Например:
+
+```cpp
+bool DriveController::signal_valid(
+    const RcPwmSnapshot& snapshot,
+    uint64_t now_us
+) const {
+    const uint64_t timeout_us =
+        static_cast<uint64_t>(config::RC_SIGNAL_TIMEOUT_MS) * 1000ULL;
+
+    return snapshot.forward.has_pulse &&
+           snapshot.steer.has_pulse &&
+           rc_age_us(now_us, snapshot.forward.updated_us) <= timeout_us &&
+           rc_age_us(now_us, snapshot.steer.updated_us) <= timeout_us;
+}
+```
+
+Ту же функцию использовать для dashboard ages:
+
+```cpp
+state_.forward_age_ms =
+    rc_age_us(now_us, snapshot.forward.updated_us) / 1000ULL;
+```
+
+и для steer.
+
+Нигде не оставлять прямое:
+
+```cpp
+now_us - updated_us
+```
+
+для RC timestamps.
+
+---
+
+# 3. RcPwmInput не ломать
+
+Текущая логика ISR правильная:
+
+```cpp
+if (GPIO_IRQ_EDGE_RISE)
+    rising_us = time_us_64();
+
+if (GPIO_IRQ_EDGE_FALL) {
+    width = now - rising;
+    pulse_us = width;
+    updated_us = now;
+}
+```
+
+`updated_us` должен продолжать обновляться на КАЖДОМ корректном PWM frame, даже если pulse width не изменился.
+
+Например:
+
+```text
+1504 us
+1504 us
+1504 us
+1504 us
+```
+
+— это четыре новых валидных RC frames.
+
+Не сравнивать pulse width для определения свежести.
+
+---
+
+# 4. Arming оставить простым
+
+Текущий принцип arming правильный.
+
+Neutral:
+
+```cpp
+forward_neutral =
+    1450 <= raw_forward &&
+    raw_forward <= 1550;
+
+steer_neutral =
+    1450 <= raw_steer &&
+    raw_steer <= 1550;
+```
+
+При:
+
+```text
+RC FWD=1504
+RC STEER=1484
+```
+
+оба должны быть `true`.
+
+Логика:
+
+```text
+VALID + оба neutral
+        ↓
+начать neutral timer
+        ↓
+500 ms непрерывно
+        ↓
+ARMED
+```
+
+После `armed=true` выход стика из neutral НЕ должен разоружать управление.
+
+Armed сбрасывается только при:
+
+* реальной потере RC signal;
+* reboot.
+
+Не менять эту архитектуру.
+
+---
+
+# 5. Не увеличивать SIGNAL_TIMEOUT для маскировки ошибки
+
+Оставить:
+
+```text
+RC_SIGNAL_TIMEOUT_MS=120
+```
+
+120 ms для текущего теста достаточно.
+
+Не ставить 300/500/1000 ms только для того, чтобы скрыть race condition.
+
+Обязательно сохранить:
+
+```text
+120 ms = 120000 us
+```
+
+---
+
+# 6. Добавить диагностику arming непосредственно в dashboard
+
+Расширить `DriveControllerState`:
+
+```cpp
+bool forward_neutral;
+bool steer_neutral;
+uint32_t arm_elapsed_ms;
+```
+
+Dashboard должен показывать:
+
+```text
+SIGNAL      : VALID
+NEUTRAL FWD : YES
+NEUTRAL STR : YES
+ARM TIMER   : 347 / 500 ms
+ARM         : WAIT_NEUTRAL
+```
+
+После 500 ms:
+
+```text
+ARM TIMER   : 500 / 500 ms
+ARM         : READY
+```
+
+Если timer сбросился — это сразу видно.
+
+После READY и отклонения стика:
+
+```text
+NEUTRAL FWD : NO
+ARM         : READY
+ACTIVE      : YES
+```
+
+Это важно: после успешного arming neutral больше не требуется для движения.
+
+---
+
+# 7. Исправить вывод событий
+
+Сейчас `print_rc_events()` печатает обычные строки:
+
+```text
+EVENT: RC SIGNAL LOST
+EVENT: RC SIGNAL RESTORED
+```
+
+между обновлениями ANSI dashboard.
+
+Для диагностики лучше хранить последнее событие:
+
+```cpp
+enum class RcEvent {
+    None,
+    SignalLost,
+    SignalRestored,
+    Armed
+};
+```
+
+или строку + timestamp.
+
+Dashboard должен содержать одну строку:
+
+```text
+LAST EVENT : RC SIGNAL RESTORED, 1.4 s ago
+```
+
+или:
+
+```text
+LAST EVENT : RC ARMED, 0.8 s ago
+```
+
+Не оставлять старую строку:
+
+```text
+EVENT: RC SIGNAL LOST
+```
+
+под dashboard так, будто ошибка активна сейчас.
+
+События создавать только на реальном transition.
+
+Не делать `printf` на каждом main-loop.
+
+---
+
+# 8. Добавить regression test именно на найденную гонку
+
+Текущие tests не покрывают ситуацию:
+
+```text
+updated_us > now_us
+```
+
+Добавить тест:
+
+```cpp
+const RcPwmSnapshot snapshot = {
+    .forward = {
+        .pulse_us = 1500,
+        .updated_us = 1'000'005,
+        .has_pulse = true
+    },
+    .steer = {
+        .pulse_us = 1500,
+        .updated_us = 1'000'003,
+        .has_pulse = true
+    }
+};
+
+const uint64_t now_us = 1'000'000;
+```
+
+`rc_age_us()` должен вернуть:
+
+```text
+0
+```
+
+а не unsigned overflow.
+
+Signal не должен ошибочно становиться INVALID.
+
+Этот тест нужен именно как regression test найденной аппаратной race condition.
+
+---
+
+# 9. Добавить тест непрерывного реального PWM
+
+Смоделировать RC с периодом около 20 ms.
+
+Например:
+
+```text
+0 ms      pulse 1500/1500
+20 ms     pulse 1501/1499
+40 ms     pulse 1500/1500
+...
+500 ms
+```
+
+Все samples внутри deadband.
+
+После 500 ms:
+
+```text
+armed=true
+```
+
+Периодическое обновление `updated_us` НЕ должно сбрасывать neutral timer.
+
+---
+
+# 10. Добавить test transient race every frame
+
+Смоделировать ситуацию, когда snapshot получил timestamp на несколько микросекунд позже переданного `now_us`.
+
+Например на нескольких итерациях:
+
+```text
+main now=100000
+snapshot updated=100003
+
+main now=120000
+snapshot updated=120004
+
+main now=140000
+snapshot updated=140002
+```
+
+Это не должно:
+
+* генерировать SIGNAL LOST;
+* сбрасывать arming;
+* создавать огромный age.
+
+---
+
+# 11. Проверить существующие tests
+
+Текущий `test_rc_failsafe_and_arming()` в основном использует:
+
+```cpp
+snapshot.updated_us == now_us
+```
+
+поэтому найденный race condition он не обнаруживал.
+
+Существующие тесты не удалять.
+
+Дополнить их новыми случаями.
+
+---
+
+# 12. После исправления проверить всю цепочку
+
+При текущих реальных значениях:
+
+```text
+FWD ≈ 1504
+STEER ≈ 1484
+```
+
+ожидается:
+
+```text
+SIGNAL      : VALID
+NEUTRAL FWD : YES
+NEUTRAL STR : YES
+
+ARM TIMER:
+0 → 100 → 200 → 300 → 400 → 500 ms
+
+ARM:
+WAIT_NEUTRAL → READY
+```
+
+Затем при отклонении Forward, например до 1800:
+
+```text
+SIGNAL      : VALID
+ARM         : READY
+ACTIVE      : YES
+normalized forward > 0
+DRIVE L/R != 0
+```
+
+и `GaitController` должен выйти из `IDLE`.
+
+---
+
+# 13. Не менять остальную систему
+
+Не изменять:
+
+* PIO servo driver;
+* PIO programs;
+* DMA;
+* 50 Hz servo frames;
+* servo GPIO;
+* GP0/GP1;
+* ServoConfig;
+* зеркальную калибровку сторон;
+* STAND_POSE;
+* gait lift parameters;
+* gait swing parameters;
+* RC deadband 50 us;
+* RC range 900...2100;
+* RC valid range 800...2200;
+* RC minimum speed;
+* differential steering.
+
+Не возвращать автоматическую RC calibration.
+
+---
+
+# 14. Дополнительно проверить следующий потенциальный недостаток
+
+После исправления arming проверь текущую реализацию minimum speed.
+
+Сейчас `apply_deadzone_and_speed()` задаёт минимум `RC_MIN_SPEED=0.30`, но сами:
+
+```cpp
+command.forward
+command.turn
+```
+
+могут оставаться практически нулевыми сразу за deadband.
+
+Далее GaitController умножает swing amplitude на magnitude `left/right command`.
+
+Из-за этого возможна ситуация:
+
+```text
+speed ≈ 0.30
+но Coxa swing ≈ почти 0°
+```
+
+то есть робот начинает быстрый цикл подъёма ног, но почти не делает поступательного шага.
+
+Пока НЕ переделывай эту часть автоматически, если она не мешает текущему тесту.
+
+Но в итоговом отчёте явно напиши, существует ли эта проблема в текущей реализации и какие фактические значения Coxa swing будут:
+
+* сразу после выхода за deadband;
+* при 25% стика;
+* при 50% стика;
+* при 100% стика.
+
+Сначала нужно добиться корректного ARMED и запуска gait.
+
+---
+
+# 15. Собрать и проверить
+
+После изменений:
+
+1. Запустить `generate_robot_params.py --self-test`.
+2. Собрать host tests.
+3. Запустить все host tests.
+4. Собрать firmware.
+5. Проверить UF2.
+6. Проверить git diff.
+
+В конце выведи:
+
+1. Подтвердился ли описанный race condition.
+2. Где именно происходил unsigned underflow.
+3. Какие строки `main.cpp` изменены.
+4. Как теперь рассчитывается RC age.
+5. Какие regression tests добавлены.
+6. Почему раньше `WAIT_NEUTRAL` не доходил до READY.
+7. Есть ли проблема minimum-speed / tiny-step, описанная выше.
+8. Результат host tests.
+9. Результат firmware build.
+10. Путь к UF2.

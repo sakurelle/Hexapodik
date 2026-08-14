@@ -53,10 +53,8 @@ void apply_payload_to_servos(const StoredConfigPayload &payload,
 }
 
 #if __has_include("hardware/flash.h")
-static constexpr uint32_t CONFIG_FLASH_OFFSET = PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE_BYTES;
-
 bool ConfigStorage::load(std::array<servo::ServoConfig, servo::SERVO_COUNT> &servos) {
-    const auto *image = reinterpret_cast<const StoredConfigImage *>(XIP_BASE + CONFIG_FLASH_OFFSET);
+    const auto *image = reinterpret_cast<const StoredConfigImage *>(XIP_BASE + SERVO_CONFIG_FLASH_OFFSET);
     const ConfigStatus status = validate_config_image(*image);
     last_load_valid_ = status == ConfigStatus::Valid;
     if (last_load_valid_) {
@@ -78,8 +76,8 @@ bool ConfigStorage::save(const std::array<servo::ServoConfig, servo::SERVO_COUNT
     memcpy(sector, &image, sizeof(image));
 
     const uint32_t ints = save_and_disable_interrupts();
-    flash_range_erase(CONFIG_FLASH_OFFSET, FLASH_SECTOR_SIZE_BYTES);
-    flash_range_program(CONFIG_FLASH_OFFSET, sector, FLASH_SECTOR_SIZE_BYTES);
+    flash_range_erase(SERVO_CONFIG_FLASH_OFFSET, FLASH_SECTOR_SIZE_BYTES);
+    flash_range_program(SERVO_CONFIG_FLASH_OFFSET, sector, FLASH_SECTOR_SIZE_BYTES);
     restore_interrupts(ints);
 
     return true;

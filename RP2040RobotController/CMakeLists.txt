@@ -42,10 +42,33 @@ project(RP2040RobotController C CXX ASM)
 
 pico_sdk_init()
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+set(ROBOT_PARAMS_TXT ${CMAKE_CURRENT_LIST_DIR}/config/robot_params.txt)
+set(ROBOT_PARAMS_HPP ${CMAKE_CURRENT_BINARY_DIR}/generated/robot_params.hpp)
+
+add_custom_command(
+    OUTPUT ${ROBOT_PARAMS_HPP}
+    COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_LIST_DIR}/tools/generate_robot_params.py
+        --input ${ROBOT_PARAMS_TXT}
+        --output ${ROBOT_PARAMS_HPP}
+    DEPENDS
+        ${ROBOT_PARAMS_TXT}
+        ${CMAKE_CURRENT_LIST_DIR}/tools/generate_robot_params.py
+    COMMENT "Generating robot_params.hpp"
+    VERBATIM
+)
+
+add_custom_target(generate_robot_params DEPENDS ${ROBOT_PARAMS_HPP})
+
 add_executable(RP2040RobotController
     src/main.cpp
     src/app/startup_controller.cpp
+    src/control/drive_controller.cpp
+    src/input/rc_pwm_input.cpp
     src/protocol/uart_protocol.cpp
+    src/robot/gait_controller.cpp
     src/robot/motion_controller.cpp
     src/servo/pio_servo_driver.cpp
     src/servo/servo_calibration.cpp
@@ -53,6 +76,8 @@ add_executable(RP2040RobotController
     src/storage/config_storage.cpp
     src/storage/crc32.cpp
 )
+
+add_dependencies(RP2040RobotController generate_robot_params)
 
 pico_generate_pio_header(RP2040RobotController ${CMAKE_CURRENT_LIST_DIR}/pio/servo_14ch.pio)
 pico_generate_pio_header(RP2040RobotController ${CMAKE_CURRENT_LIST_DIR}/pio/servo_4ch.pio)
