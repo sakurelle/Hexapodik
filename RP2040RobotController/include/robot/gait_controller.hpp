@@ -22,16 +22,20 @@ enum class GaitMode {
 enum class GaitState {
     Idle,
     MarchStand,
+    MarchPreliftA,
     MarchLiftA,
     MarchHoldA,
     MarchLowerA,
+    MarchPreliftB,
     MarchLiftB,
     MarchHoldB,
     MarchLowerB,
     WalkPrepare,
+    WalkAPrelift,
     WalkALift,
     WalkATransfer,
     WalkALower,
+    WalkBPrelift,
     WalkBLift,
     WalkBTransfer,
     WalkBLower,
@@ -66,6 +70,9 @@ public:
     bool error() const { return mode_ == GaitMode::Error; }
     const char *diagnostic() const { return diagnostic_; }
     control::DriveMix drive_mix() const { return drive_mix_; }
+    float drive_command_magnitude() const;
+    float drive_step_swing_deg() const;
+    float drive_step_speed() const;
 
 private:
     enum class AutoDemoState {
@@ -99,6 +106,7 @@ private:
     control::DriveCommand drive_command_{};
     control::DriveMix drive_mix_{};
     uint32_t rc_lift_ms_ = 250;
+    uint32_t rc_prelift_ms_ = 120;
     uint32_t rc_transfer_ms_ = 500;
     uint32_t rc_lower_ms_ = 250;
     AutoDemoState auto_state_ = AutoDemoState::WaitingForStand;
@@ -106,7 +114,9 @@ private:
 };
 
 RobotPose lifted_pose(const std::array<servo::Leg, 3> &tripod);
+RobotPose prelifted_pose(const std::array<servo::Leg, 3> &tripod);
 RobotPose walk_cycle_start_pose();
+RobotPose walk_prelift_pose(const std::array<servo::Leg, 3> &tripod);
 RobotPose walk_transfer_pose(const std::array<servo::Leg, 3> &swing_tripod);
 RobotPose walk_lift_pose(const std::array<servo::Leg, 3> &tripod);
 RobotPose walk_ground_pose();

@@ -135,7 +135,10 @@ DriveControllerState DriveController::update(const RcPwmSnapshot &snapshot, uint
         x = normalize_rc_channel_fixed(snapshot.steer.pulse_us, config::RC_STEER_REVERSED);
     }
 
-    if (last_update_us_ == 0 || config::RC_SMOOTHING_MS == 0) {
+    if (state_.forward_neutral && state_.steer_neutral) {
+        filtered_x_ = 0.0f;
+        filtered_y_ = 0.0f;
+    } else if (last_update_us_ == 0 || config::RC_SMOOTHING_MS == 0) {
         filtered_x_ = x;
         filtered_y_ = y;
     } else {
@@ -161,8 +164,16 @@ DriveControllerState DriveController::update(const RcPwmSnapshot &snapshot, uint
         command = DriveCommand{};
     }
 
+    DriveMix mix = differential_mix(command.forward, command.turn, config::GAIT_TURN_GAIN);
+    const float command_magnitude = std::max(std::fabs(mix.left), std::fabs(mix.right));
+    if (command.active && command_magnitude < config::RC_ACTIVE_THRESHOLD) {
+        command = DriveCommand{};
+        mix = DriveMix{};
+    }
+
     state_.command = command;
-    state_.mix = differential_mix(command.forward, command.turn, config::GAIT_TURN_GAIN);
+    state_.mix = mix;
+    state_.command_magnitude = command.active ? command_magnitude : 0.0f;
     return state_;
 }
 

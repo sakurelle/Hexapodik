@@ -14,6 +14,7 @@ SCHEMA = {
     "RC_VALID_MIN_US": ("uint16", 500, 3000),
     "RC_VALID_MAX_US": ("uint16", 500, 3000),
     "RC_DEADBAND_US": ("uint16", 0, 500),
+    "RC_ACTIVE_THRESHOLD": ("float", 0.0, 1.0),
     "RC_FORWARD_REVERSED": ("bool", None, None),
     "RC_STEER_REVERSED": ("bool", None, None),
     "RC_MIN_SPEED": ("float", 0.0, 1.0),
@@ -26,12 +27,21 @@ SCHEMA = {
     "SERIAL_DASHBOARD": ("bool", None, None),
     "SERIAL_DASHBOARD_RATE_HZ": ("uint32", 1, 100),
     "SERIAL_DASHBOARD_ANSI": ("bool", None, None),
+    "STAND_COXA_DEG": ("float", -45.0, 45.0),
+    "STAND_FEMUR_DEG": ("float", -45.0, 45.0),
+    "STAND_TIBIA_DEG": ("float", -45.0, 45.0),
+    "GAIT_PRELIFT_FEMUR_DELTA_DEG": ("float", -45.0, 45.0),
+    "GAIT_PRELIFT_TIBIA_DELTA_DEG": ("float", -45.0, 45.0),
     "GAIT_LIFT_FEMUR_DELTA_DEG": ("float", -45.0, 45.0),
     "GAIT_LIFT_TIBIA_DELTA_DEG": ("float", -45.0, 45.0),
     "GAIT_COXA_SWING_MIN_DEG": ("float", 0.0, 45.0),
     "GAIT_COXA_SWING_MAX_DEG": ("float", 0.0, 45.0),
     "GAIT_CYCLE_SLOW_MS": ("uint32", 100, 5000),
     "GAIT_CYCLE_FAST_MS": ("uint32", 100, 5000),
+    "GAIT_PRELIFT_MIN_MS": ("uint32", 1, 1000),
+    "GAIT_LIFT_MIN_MS": ("uint32", 1, 1000),
+    "GAIT_TRANSFER_MIN_MS": ("uint32", 1, 1000),
+    "GAIT_LOWER_MIN_MS": ("uint32", 1, 1000),
     "GAIT_TURN_GAIN": ("float", 0.0, 3.0),
 }
 
@@ -184,10 +194,11 @@ RC_CENTER_US=1500
 RC_MAX_US=2100
 RC_VALID_MIN_US=800
 RC_VALID_MAX_US=2200
-RC_DEADBAND_US=50
+RC_DEADBAND_US=80
+RC_ACTIVE_THRESHOLD=0.12
 RC_FORWARD_REVERSED=false
 RC_STEER_REVERSED=true
-RC_MIN_SPEED=0.30
+RC_MIN_SPEED=0.45
 RC_MAX_SPEED=1.00
 RC_SMOOTHING_MS=80
 RC_SIGNAL_TIMEOUT_MS=120
@@ -197,12 +208,21 @@ RC_DEBUG_RATE_HZ=10
 SERIAL_DASHBOARD=true
 SERIAL_DASHBOARD_RATE_HZ=10
 SERIAL_DASHBOARD_ANSI=true
-GAIT_LIFT_FEMUR_DELTA_DEG=12
-GAIT_LIFT_TIBIA_DELTA_DEG=-15
-GAIT_COXA_SWING_MIN_DEG=6
-GAIT_COXA_SWING_MAX_DEG=12
+STAND_COXA_DEG=0
+STAND_FEMUR_DEG=9
+STAND_TIBIA_DEG=0
+GAIT_PRELIFT_FEMUR_DELTA_DEG=6
+GAIT_PRELIFT_TIBIA_DELTA_DEG=0
+GAIT_LIFT_FEMUR_DELTA_DEG=14
+GAIT_LIFT_TIBIA_DELTA_DEG=-18
+GAIT_COXA_SWING_MIN_DEG=8
+GAIT_COXA_SWING_MAX_DEG=16
 GAIT_CYCLE_SLOW_MS=1200
 GAIT_CYCLE_FAST_MS=450
+GAIT_PRELIFT_MIN_MS=80
+GAIT_LIFT_MIN_MS=100
+GAIT_TRANSFER_MIN_MS=160
+GAIT_LOWER_MIN_MS=120
 GAIT_TURN_GAIN=1.0
 """,
             encoding="utf-8",
@@ -211,7 +231,7 @@ GAIT_TURN_GAIN=1.0
         for name, text in {
             "duplicate": good.read_text(encoding="utf-8") + "RC_DEBUG=false\n",
             "unknown": good.read_text(encoding="utf-8") + "BOGUS=1\n",
-            "bad_range": good.read_text(encoding="utf-8").replace("RC_DEADBAND_US=50", "RC_DEADBAND_US=900"),
+            "bad_range": good.read_text(encoding="utf-8").replace("RC_DEADBAND_US=80", "RC_DEADBAND_US=900"),
         }.items():
             bad = tmp_path / f"{name}.txt"
             bad.write_text(text, encoding="utf-8")

@@ -96,7 +96,7 @@ void print_gait_status() {
 }
 
 void print_help() {
-    uart_write_line("OK COMMANDS PING STATUS ALL CENTER STAND ENABLE ALL DISABLE ALL MARCH WALK DEMO WALK STOP GAIT STATUS SERVO LEG CAL SHOW CAL SET CAL SAVE CAL LOAD CAL RESET HELP");
+    uart_write_line("OK COMMANDS PING STATUS ALL CENTER ZERO STAND ENABLE ALL DISABLE ALL MARCH WALK DEMO WALK STOP GAIT STATUS SERVO LEG CAL SHOW CAL SET CAL SAVE CAL LOAD CAL RESET HELP");
 }
 
 void record_rc_event(const char *text, uint64_t now_us) {
@@ -141,6 +141,13 @@ void print_serial_dashboard(uint64_t now_us, const control::DriveControllerState
         printf("ARM         : %s\x1b[K\r\n", drive.armed ? "READY" : (drive.waiting_neutral ? "WAIT_NEUTRAL" : "NO_SIGNAL"));
         printf("ACTIVE      : %s\x1b[K\r\n", drive.command.active ? "YES" : "NO");
         printf("SPEED       : %0.2f\x1b[K\r\n", static_cast<double>(drive.command.speed));
+        printf("ACTIVE THR  : %0.2f\x1b[K\r\n", static_cast<double>(config::RC_ACTIVE_THRESHOLD));
+        printf("CMD MAG     : %0.2f\x1b[K\r\n", static_cast<double>(drive.command_magnitude));
+        printf("STEP SWING  : %0.1f deg\x1b[K\r\n", static_cast<double>(g_gait.drive_step_swing_deg()));
+        printf("STEP SPEED  : %0.2f\x1b[K\r\n", static_cast<double>(g_gait.drive_step_speed()));
+        printf("MOTION      : %s\x1b[K\r\n", robot::motion_interpolation_name(g_motion.interpolation()));
+        printf("PHASE       : %s\x1b[K\r\n", robot::gait_state_name(g_gait.state()));
+        printf("PHASE %%     : %3u\x1b[K\r\n", static_cast<unsigned>(g_motion.progress_percent()));
         if (g_has_last_rc_event) {
             printf("LAST EVENT  : %s, %0.1f s ago\x1b[K\r\n",
                    g_last_rc_event,
@@ -155,7 +162,7 @@ void print_serial_dashboard(uint64_t now_us, const control::DriveControllerState
         printf("GAIT     : %-16s\x1b[K\r\n", robot::gait_state_name(g_gait.state()));
         printf("----------------------------------------\x1b[K\r\n");
     } else {
-        printf("\rFWD=%4u STR=%4u F=%+.2f T=%+.2f AGEF=%3lu AGES=%3lu NF=%d NS=%d TMR=%3lu/%lu SIG=%d ARM=%d ACT=%d SPD=%.2f L=%+.2f R=%+.2f EVT=%s GAIT=%-16s        ",
+        printf("\rFWD=%4u STR=%4u F=%+.2f T=%+.2f AGEF=%3lu AGES=%3lu NF=%d NS=%d TMR=%3lu/%lu SIG=%d ARM=%d ACT=%d THR=%.2f MAG=%.2f SPD=%.2f SWG=%.1f STEP=%.2f L=%+.2f R=%+.2f MOT=%s PH=%s PCT=%u EVT=%s GAIT=%-16s        ",
                drive.raw_forward_us,
                drive.raw_steer_us,
                static_cast<double>(drive.y),
@@ -169,9 +176,16 @@ void print_serial_dashboard(uint64_t now_us, const control::DriveControllerState
                drive.signal_valid ? 1 : 0,
                drive.armed ? 1 : 0,
                drive.command.active ? 1 : 0,
+               static_cast<double>(config::RC_ACTIVE_THRESHOLD),
+               static_cast<double>(drive.command_magnitude),
                static_cast<double>(drive.command.speed),
+               static_cast<double>(g_gait.drive_step_swing_deg()),
+               static_cast<double>(g_gait.drive_step_speed()),
                static_cast<double>(drive.mix.left),
                static_cast<double>(drive.mix.right),
+               robot::motion_interpolation_name(g_motion.interpolation()),
+               robot::gait_state_name(g_gait.state()),
+               static_cast<unsigned>(g_motion.progress_percent()),
                g_has_last_rc_event ? g_last_rc_event : "NONE",
                robot::gait_state_name(g_gait.state()));
     }
@@ -203,6 +217,11 @@ void handle_command(const protocol::Command &command) {
         g_gait.abort();
         g_startup.force_center(time_us_64(), g_motion);
         uart_write_line("OK ALL CENTER");
+        break;
+    case protocol::CommandType::Zero:
+        g_gait.abort();
+        g_motion.set_target(robot::ZERO_POSE, 30.0f);
+        uart_write_line("OK ZERO");
         break;
     case protocol::CommandType::Stand:
         g_gait.abort();

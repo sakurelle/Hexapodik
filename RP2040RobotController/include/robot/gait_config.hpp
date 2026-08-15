@@ -10,15 +10,19 @@ namespace robot::gait {
 
 constexpr float GAIT_LIFT_FEMUR_DELTA_DEG = config::GAIT_LIFT_FEMUR_DELTA_DEG;
 constexpr float GAIT_LIFT_TIBIA_DELTA_DEG = config::GAIT_LIFT_TIBIA_DELTA_DEG;
+constexpr float GAIT_PRELIFT_FEMUR_DELTA_DEG = config::GAIT_PRELIFT_FEMUR_DELTA_DEG;
+constexpr float GAIT_PRELIFT_TIBIA_DELTA_DEG = config::GAIT_PRELIFT_TIBIA_DELTA_DEG;
 constexpr float GAIT_COXA_SWING_MIN_DEG = config::GAIT_COXA_SWING_MIN_DEG;
 constexpr float GAIT_COXA_SWING_MAX_DEG = config::GAIT_COXA_SWING_MAX_DEG;
 
+constexpr uint32_t MARCH_PRELIFT_TIME_MS = 120;
 constexpr uint32_t MARCH_LIFT_TIME_MS = 300;
 constexpr uint32_t MARCH_HOLD_TIME_MS = 200;
 constexpr uint32_t MARCH_LOWER_TIME_MS = 300;
 constexpr uint8_t MARCH_CYCLES = 2;
 
 constexpr uint32_t WALK_PREPARE_MS = 500;
+constexpr uint32_t WALK_PRELIFT_MS = 120;
 constexpr uint32_t WALK_LIFT_MS = 250;
 constexpr uint32_t WALK_TRANSFER_MS = 500;
 constexpr uint32_t WALK_LOWER_MS = 250;
@@ -31,6 +35,10 @@ constexpr uint32_t AUTO_DEMO_BETWEEN_MS = 2000;
 
 constexpr uint32_t GAIT_CYCLE_SLOW_MS = config::GAIT_CYCLE_SLOW_MS;
 constexpr uint32_t GAIT_CYCLE_FAST_MS = config::GAIT_CYCLE_FAST_MS;
+constexpr uint32_t GAIT_PRELIFT_MIN_MS = config::GAIT_PRELIFT_MIN_MS;
+constexpr uint32_t GAIT_LIFT_MIN_MS = config::GAIT_LIFT_MIN_MS;
+constexpr uint32_t GAIT_TRANSFER_MIN_MS = config::GAIT_TRANSFER_MIN_MS;
+constexpr uint32_t GAIT_LOWER_MIN_MS = config::GAIT_LOWER_MIN_MS;
 
 constexpr std::array<servo::Leg, 3> TRIPOD_A = {{
     servo::Leg::FR,

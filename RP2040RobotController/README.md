@@ -101,9 +101,9 @@ pulse_plus_45_us  = 2000
 
 ## Начальная стойка
 
-`CENTER_POSE` и `STAND_POSE` находятся в `include/robot/robot_pose.hpp`.
+`ZERO_POSE`, `CENTER_POSE` и `STAND_POSE` находятся в `include/robot/robot_pose.hpp`.
 
-`CENTER_POSE`:
+`ZERO_POSE` и совместимый alias `CENTER_POSE`:
 
 ```text
 Coxa  = 0°
@@ -111,12 +111,12 @@ Femur = 0°
 Tibia = 0°
 ```
 
-`STAND_POSE`:
+Это механические нули после сборки и сервисная поза для отладки. Рабочая стойка `STAND_POSE` задается build-time параметрами из `config/robot_params.txt`:
 
 ```text
-Coxa  = 0°
-Femur = -15°
-Tibia = +20°
+STAND_COXA_DEG=0
+STAND_FEMUR_DEG=9
+STAND_TIBIA_DEG=0
 ```
 
 ## Безопасный запуск
@@ -139,6 +139,7 @@ BOOT -> OUTPUTS_DISABLED -> CENTERING -> MOVING_TO_STAND -> HOLDING_STAND
 PING
 STATUS
 ALL CENTER
+ZERO
 STAND
 ENABLE ALL
 DISABLE ALL
@@ -183,7 +184,9 @@ ERR CONFIG_INVALID
 
 `STATUS` выводит состояние автомата, состояние выходов, источник конфигурации, версию конфигурации, счетчики ошибок UART/PIO-DMA и номер кадра.
 
-`MARCH` запускает два цикла марша на месте без движения Coxa: tripod A (`FR`, `ML`, `RR`) поднимается, удерживается и опускается, затем то же делает tripod B (`FL`, `MR`, `RL`). `WALK DEMO` запускает три цикла открытой tripod-походки в пространстве углов: Coxa качается на 8 градусов, а Femur/Tibia только поднимают и опускают ноги. Это аппаратный тест без IK, без обратной связи и без гарантии прямолинейного движения робота.
+`ZERO` переводит суставы в механические нули. `STAND` переводит робота в рабочую стойку из `STAND_*_DEG`.
+
+`MARCH` запускает два цикла марша на месте без движения Coxa: tripod A (`FR`, `ML`, `RR`) сначала проходит pre-lift, затем полный lift, удерживается и опускается, затем то же делает tripod B (`FL`, `MR`, `RL`). `WALK DEMO` запускает три цикла открытой tripod-походки в пространстве углов: Coxa качается на 16 градусов, а Femur/Tibia поднимают и опускают ноги через `PRELIFT -> LIFT -> TRANSFER -> LOWER`. Это аппаратный тест без IK, без обратной связи и без гарантии прямолинейного движения робота.
 
 `WALK STOP` останавливает активную походку: сначала опускает все ноги в текущей фазе, затем плавно возвращает точную `STAND_POSE` и продолжает удержание стойки. `ALL CENTER`, `STAND` и `DISABLE ALL` отменяют активную походку; `DISABLE ALL` имеет абсолютный приоритет и сразу выключает выходы.
 
@@ -206,7 +209,10 @@ RC_CENTER_US=1500
 RC_MAX_US=2100
 RC_VALID_MIN_US=800
 RC_VALID_MAX_US=2200
-RC_DEADBAND_US=50
+RC_DEADBAND_US=80
+RC_ACTIVE_THRESHOLD=0.12
+RC_MIN_SPEED=0.45
+RC_MAX_SPEED=1.00
 RC_SIGNAL_TIMEOUT_MS=120
 RC_ARM_NEUTRAL_MS=500
 SERIAL_DASHBOARD=true
@@ -218,7 +224,7 @@ SERIAL_DASHBOARD_ANSI=true
 
 RC-калибровки во Flash больше нет: прошивка использует только build-time значения из `config/robot_params.txt`. Валидный входной диапазон `800..2200` мкс нужен для отбраковки импульсов приемника, а нормализация перед расчетом команды зажимает raw-значение в `900..2100` мкс.
 
-Нейтраль фиксированная: `1450..1550` мкс всегда дает ровно `0`. Ниже нейтрали канал нормализуется линейно как `900 -> -1`, `1450 -> 0`; выше нейтрали как `1550 -> 0`, `2100 -> +1`. `RC_FORWARD_REVERSED` и `RC_STEER_REVERSED` применяются после нормализации. Радиальная RC-deadzone не используется; нулевую команду дает только фиксированная нейтральная зона канала.
+Нейтраль фиксированная: `1420..1580` мкс всегда дает ровно `0`. Ниже нейтрали канал нормализуется линейно как `900 -> -1`, `1420 -> 0`; выше нейтрали как `1580 -> 0`, `2100 -> +1`. `RC_FORWARD_REVERSED` и `RC_STEER_REVERSED` применяются после нормализации. Радиальная RC-deadzone не используется; нулевую команду дает фиксированная нейтральная зона канала и дополнительный `RC_ACTIVE_THRESHOLD`.
 
 Перед arming оба канала должны быть валидны и оба стика должны находиться в нейтрали непрерывно `RC_ARM_NEUTRAL_MS=500` мс. На `499` мс состояние еще не armed, на `500` мс становится armed. Если стик вышел из нейтрали до завершения ожидания, таймер запускается заново.
 
@@ -236,6 +242,14 @@ SIGNAL   : VALID
 ARM      : READY
 ACTIVE   : NO
 SPEED    : 0.00
+ACTIVE THR  : 0.12
+CMD MAG     : 0.00
+STEP SWING  : 0.0 deg
+STEP SPEED  : 0.00
+MOTION      : SMOOTHERSTEP
+PHASE       : A_TRANSFER
+PHASE %     :  42
+LAST EVENT  : RC ARMED, 0.8 s ago
 
 DRIVE L  : +0.00
 DRIVE R  : +0.00
@@ -244,14 +258,9 @@ GAIT     : STAND
 ----------------------------------------
 ```
 
-Если `SERIAL_DASHBOARD_ANSI=false`, прошивка печатает одну строку через `\r` без `\n`, с padding в конце строки. Отдельные события пишутся только при изменении состояния:
+Если `SERIAL_DASHBOARD_ANSI=false`, прошивка печатает одну строку через `\r` без `\n`, с padding в конце строки. События сохраняются как последняя строка `LAST EVENT`, чтобы старое сообщение `RC SIGNAL LOST` не оставалось под dashboard как будто ошибка активна сейчас.
 
-```text
-EVENT: RC SIGNAL RESTORED
-EVENT: RC SIGNAL LOST
-EVENT: RC ARMED
-ARM: WAIT_NEUTRAL
-```
+После normalizing и differential mixing команда дополнительно фильтруется: если `max(abs(left_command), abs(right_command)) < RC_ACTIVE_THRESHOLD`, `DriveCommand.active=false`, и gait не стартует. Это защищает от марша на месте, когда стики почти в центре.
 
 Steering реализован как differential mixing:
 
@@ -264,12 +273,29 @@ right_command = forward - turn
 
 Failsafe: если любой канал не обновлялся дольше `RC_SIGNAL_TIMEOUT_MS=120` мс, новые drive-команды не принимаются, `armed=false`, походка безопасно доводит текущую половину шага до земли и возвращается в `STAND_POSE`. После восстановления сигнала снова требуется 500 мс нейтрали; Servo PWM при этом не отключается.
 
-Высота подъема ноги задается здесь же:
+Параметры стойки и походки задаются здесь же:
 
 ```text
-GAIT_LIFT_FEMUR_DELTA_DEG=12
-GAIT_LIFT_TIBIA_DELTA_DEG=-15
+STAND_COXA_DEG=0
+STAND_FEMUR_DEG=9
+STAND_TIBIA_DEG=0
+
+GAIT_PRELIFT_FEMUR_DELTA_DEG=6
+GAIT_PRELIFT_TIBIA_DELTA_DEG=0
+
+GAIT_LIFT_FEMUR_DELTA_DEG=14
+GAIT_LIFT_TIBIA_DELTA_DEG=-18
+
+GAIT_COXA_SWING_MIN_DEG=8
+GAIT_COXA_SWING_MAX_DEG=16
+
+GAIT_PRELIFT_MIN_MS=80
+GAIT_LIFT_MIN_MS=100
+GAIT_TRANSFER_MIN_MS=160
+GAIT_LOWER_MIN_MS=120
 ```
+
+В каждой lifting-фазе сначала выполняется `PRELIFT`: Femur поднимается на `GAIT_PRELIFT_FEMUR_DELTA_DEG`, Tibia меняется на `GAIT_PRELIFT_TIBIA_DELTA_DEG`. Затем `LIFT` переводит ногу в полную lift-позу относительно `STAND_POSE`, после чего идет `TRANSFER` по Coxa и `LOWER` обратно на землю.
 
 Файл `config/robot_params.txt` является build-time конфигурацией. CMake перед сборкой генерирует `build/generated/robot_params.hpp`; на RP2040 файл `.txt` во время работы не читается.
 
@@ -332,10 +358,10 @@ cmake --build build
 2. Сначала проверить сборку прошивки.
 3. Проверить сигнал GP2 осциллографом или логическим анализатором.
 4. Подключить только FR Coxa.
-5. Проверить `CENTER_POSE`.
+5. Проверить `ZERO_POSE`/`CENTER_POSE`.
 6. Проверить небольшое движение.
 7. Подключить одну ногу FR.
-8. Проверить команду `LEG FR 0 -15 20`.
+8. Проверить команду `LEG FR 0 9 0`.
 9. Только после этого подключить остальные ноги.
 10. При первом запуске всех ног поднять корпус робота над поверхностью.
 11. Держать физический выключатель питания серв доступным.

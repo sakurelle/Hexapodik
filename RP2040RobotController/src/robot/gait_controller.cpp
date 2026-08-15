@@ -11,14 +11,27 @@ namespace {
 
 constexpr uint32_t US_PER_MS = 1000;
 
-void set_tripod_lift(RobotPose &pose, const std::array<servo::Leg, 3> &tripod, bool lifted) {
+void set_tripod_lift_delta(RobotPose &pose, const std::array<servo::Leg, 3> &tripod,
+                           float femur_delta_deg, float tibia_delta_deg) {
     for (const auto leg : tripod) {
         auto &leg_pose = pose.legs[servo::leg_index(leg)];
-        leg_pose.femur_deg = robot::STAND_LEG_POSE.femur_deg +
-                             (lifted ? gait::GAIT_LIFT_FEMUR_DELTA_DEG : 0.0f);
-        leg_pose.tibia_deg = robot::STAND_LEG_POSE.tibia_deg +
-                             (lifted ? gait::GAIT_LIFT_TIBIA_DELTA_DEG : 0.0f);
+        leg_pose.femur_deg = robot::STAND_LEG_POSE.femur_deg + femur_delta_deg;
+        leg_pose.tibia_deg = robot::STAND_LEG_POSE.tibia_deg + tibia_delta_deg;
     }
+}
+
+void set_tripod_lift(RobotPose &pose, const std::array<servo::Leg, 3> &tripod, bool lifted) {
+    set_tripod_lift_delta(pose,
+                          tripod,
+                          lifted ? gait::GAIT_LIFT_FEMUR_DELTA_DEG : 0.0f,
+                          lifted ? gait::GAIT_LIFT_TIBIA_DELTA_DEG : 0.0f);
+}
+
+void set_tripod_prelift(RobotPose &pose, const std::array<servo::Leg, 3> &tripod) {
+    set_tripod_lift_delta(pose,
+                          tripod,
+                          gait::GAIT_PRELIFT_FEMUR_DELTA_DEG,
+                          gait::GAIT_PRELIFT_TIBIA_DELTA_DEG);
 }
 
 void set_tripod_coxa(RobotPose &pose, const std::array<servo::Leg, 3> &tripod, bool forward) {
@@ -72,31 +85,53 @@ void set_drive_tripod_coxa(RobotPose &pose, const std::array<servo::Leg, 3> &tri
     }
 }
 
-RobotPose drive_cycle_start_pose(const control::DriveMix &mix, float swing_deg) {
+bool tripod_a_is_swing(const std::array<servo::Leg, 3> &swing_tripod) {
+    return gait::leg_in_tripod(servo::Leg::FR, swing_tripod);
+}
+
+RobotPose drive_before_transfer_pose(const std::array<servo::Leg, 3> &swing_tripod,
+                                     const control::DriveMix &mix, float swing_deg) {
     RobotPose pose = STAND_POSE;
-    set_drive_tripod_coxa(pose, gait::TRIPOD_A, false, mix, swing_deg);
-    set_drive_tripod_coxa(pose, gait::TRIPOD_B, true, mix, swing_deg);
+    const bool a_is_swing = tripod_a_is_swing(swing_tripod);
+    set_drive_tripod_coxa(pose, gait::TRIPOD_A, !a_is_swing, mix, swing_deg);
+    set_drive_tripod_coxa(pose, gait::TRIPOD_B, a_is_swing, mix, swing_deg);
+    return pose;
+}
+
+RobotPose drive_after_transfer_pose(const std::array<servo::Leg, 3> &swing_tripod,
+                                    const control::DriveMix &mix, float swing_deg) {
+    RobotPose pose = STAND_POSE;
+    const bool a_is_swing = tripod_a_is_swing(swing_tripod);
+    set_drive_tripod_coxa(pose, gait::TRIPOD_A, a_is_swing, mix, swing_deg);
+    set_drive_tripod_coxa(pose, gait::TRIPOD_B, !a_is_swing, mix, swing_deg);
     return pose;
 }
 
 RobotPose drive_transfer_pose(const std::array<servo::Leg, 3> &swing_tripod,
                               const control::DriveMix &mix, float swing_deg) {
-    RobotPose pose = STAND_POSE;
-    const bool a_is_swing = gait::leg_in_tripod(servo::Leg::FR, swing_tripod);
-    set_drive_tripod_coxa(pose, gait::TRIPOD_A, a_is_swing, mix, swing_deg);
-    set_drive_tripod_coxa(pose, gait::TRIPOD_B, !a_is_swing, mix, swing_deg);
+    RobotPose pose = drive_after_transfer_pose(swing_tripod, mix, swing_deg);
     set_tripod_lift(pose, swing_tripod, true);
     return pose;
 }
 
 RobotPose drive_lift_pose(const std::array<servo::Leg, 3> &tripod,
                           const control::DriveMix &mix, float swing_deg) {
-    RobotPose pose = drive_cycle_start_pose(mix, swing_deg);
-    if (gait::leg_in_tripod(servo::Leg::FL, tripod)) {
-        set_drive_tripod_coxa(pose, gait::TRIPOD_A, true, mix, swing_deg);
-        set_drive_tripod_coxa(pose, gait::TRIPOD_B, false, mix, swing_deg);
-    }
+    RobotPose pose = drive_before_transfer_pose(tripod, mix, swing_deg);
     set_tripod_lift(pose, tripod, true);
+    return pose;
+}
+
+RobotPose drive_prelift_pose(const std::array<servo::Leg, 3> &tripod,
+                             const control::DriveMix &mix, float swing_deg) {
+    RobotPose pose = drive_before_transfer_pose(tripod, mix, swing_deg);
+    set_tripod_prelift(pose, tripod);
+    return pose;
+}
+
+RobotPose drive_lower_pose(const std::array<servo::Leg, 3> &tripod,
+                           const control::DriveMix &mix, float swing_deg) {
+    RobotPose pose = drive_after_transfer_pose(tripod, mix, swing_deg);
+    set_tripod_lift(pose, tripod, false);
     return pose;
 }
 
@@ -112,6 +147,12 @@ RobotPose lifted_pose(const std::array<servo::Leg, 3> &tripod) {
     return pose;
 }
 
+RobotPose prelifted_pose(const std::array<servo::Leg, 3> &tripod) {
+    RobotPose pose = STAND_POSE;
+    set_tripod_prelift(pose, tripod);
+    return pose;
+}
+
 RobotPose walk_cycle_start_pose() {
     RobotPose pose = STAND_POSE;
     set_tripod_coxa(pose, gait::TRIPOD_A, false);
@@ -119,22 +160,43 @@ RobotPose walk_cycle_start_pose() {
     return pose;
 }
 
-RobotPose walk_transfer_pose(const std::array<servo::Leg, 3> &swing_tripod) {
+RobotPose walk_before_transfer_pose(const std::array<servo::Leg, 3> &swing_tripod) {
     RobotPose pose = STAND_POSE;
-    const bool a_is_swing = gait::leg_in_tripod(servo::Leg::FR, swing_tripod);
+    const bool a_is_swing = tripod_a_is_swing(swing_tripod);
+    set_tripod_coxa(pose, gait::TRIPOD_A, !a_is_swing);
+    set_tripod_coxa(pose, gait::TRIPOD_B, a_is_swing);
+    return pose;
+}
+
+RobotPose walk_after_transfer_pose(const std::array<servo::Leg, 3> &swing_tripod) {
+    RobotPose pose = STAND_POSE;
+    const bool a_is_swing = tripod_a_is_swing(swing_tripod);
     set_tripod_coxa(pose, gait::TRIPOD_A, a_is_swing);
     set_tripod_coxa(pose, gait::TRIPOD_B, !a_is_swing);
+    return pose;
+}
+
+RobotPose walk_prelift_pose(const std::array<servo::Leg, 3> &tripod) {
+    RobotPose pose = walk_before_transfer_pose(tripod);
+    set_tripod_prelift(pose, tripod);
+    return pose;
+}
+
+RobotPose walk_transfer_pose(const std::array<servo::Leg, 3> &swing_tripod) {
+    RobotPose pose = walk_after_transfer_pose(swing_tripod);
     set_tripod_lift(pose, swing_tripod, true);
     return pose;
 }
 
 RobotPose walk_lift_pose(const std::array<servo::Leg, 3> &tripod) {
-    RobotPose pose = walk_cycle_start_pose();
-    if (gait::leg_in_tripod(servo::Leg::FL, tripod)) {
-        set_tripod_coxa(pose, gait::TRIPOD_A, true);
-        set_tripod_coxa(pose, gait::TRIPOD_B, false);
-    }
+    RobotPose pose = walk_before_transfer_pose(tripod);
     set_tripod_lift(pose, tripod, true);
+    return pose;
+}
+
+RobotPose walk_lower_pose(const std::array<servo::Leg, 3> &tripod) {
+    RobotPose pose = walk_after_transfer_pose(tripod);
+    set_tripod_lift(pose, tripod, false);
     return pose;
 }
 
@@ -177,11 +239,15 @@ bool GaitController::begin(uint64_t now_us, MotionController &motion,
                            const std::array<servo::ServoConfig, servo::SERVO_COUNT> &servos,
                            GaitMode mode) {
     bool poses_safe = pose_within_servo_limits(STAND_POSE, servos) &&
+                      pose_within_servo_limits(prelifted_pose(gait::TRIPOD_A), servos) &&
+                      pose_within_servo_limits(prelifted_pose(gait::TRIPOD_B), servos) &&
                       pose_within_servo_limits(lifted_pose(gait::TRIPOD_A), servos) &&
                       pose_within_servo_limits(lifted_pose(gait::TRIPOD_B), servos);
     if (mode == GaitMode::WalkDemo) {
         poses_safe = poses_safe &&
                      pose_within_servo_limits(walk_cycle_start_pose(), servos) &&
+                     pose_within_servo_limits(walk_prelift_pose(gait::TRIPOD_A), servos) &&
+                     pose_within_servo_limits(walk_prelift_pose(gait::TRIPOD_B), servos) &&
                      pose_within_servo_limits(walk_lift_pose(gait::TRIPOD_A), servos) &&
                      pose_within_servo_limits(walk_lift_pose(gait::TRIPOD_B), servos) &&
                      pose_within_servo_limits(walk_transfer_pose(gait::TRIPOD_A), servos) &&
@@ -264,6 +330,18 @@ void GaitController::finish_idle(MotionController &motion) {
     motion.set_target(STAND_POSE, 30.0f);
 }
 
+float GaitController::drive_command_magnitude() const {
+    return std::max(std::fabs(drive_mix_.left), std::fabs(drive_mix_.right));
+}
+
+float GaitController::drive_step_swing_deg() const {
+    return drive_swing_deg(drive_command_) * drive_command_magnitude();
+}
+
+float GaitController::drive_step_speed() const {
+    return drive_command_.active ? drive_command_.speed : 0.0f;
+}
+
 void GaitController::update_drive(uint64_t now_us, MotionController &motion,
                                   const std::array<servo::ServoConfig, servo::SERVO_COUNT> &servos,
                                   const control::DriveCommand &command,
@@ -272,13 +350,16 @@ void GaitController::update_drive(uint64_t now_us, MotionController &motion,
         drive_command_ = command;
         drive_mix_ = control::differential_mix(command.forward, command.turn, config::GAIT_TURN_GAIN);
         const uint32_t cycle_ms = drive_cycle_ms(command);
-        rc_lift_ms_ = at_least_ms(cycle_ms / 8u, 40u);
-        rc_transfer_ms_ = at_least_ms(cycle_ms / 4u, 80u);
-        rc_lower_ms_ = at_least_ms(cycle_ms / 8u, 40u);
+        rc_prelift_ms_ = at_least_ms(cycle_ms / 10u, gait::GAIT_PRELIFT_MIN_MS);
+        rc_lift_ms_ = at_least_ms(cycle_ms / 10u, gait::GAIT_LIFT_MIN_MS);
+        rc_transfer_ms_ = at_least_ms(cycle_ms / 4u, gait::GAIT_TRANSFER_MIN_MS);
+        rc_lower_ms_ = at_least_ms(cycle_ms / 8u, gait::GAIT_LOWER_MIN_MS);
 
         const float swing_deg = drive_swing_deg(command);
-        const RobotPose start_pose = drive_cycle_start_pose(drive_mix_, swing_deg);
+        const RobotPose start_pose = drive_before_transfer_pose(gait::TRIPOD_A, drive_mix_, swing_deg);
         if (!pose_within_servo_limits(start_pose, servos) ||
+            !pose_within_servo_limits(drive_prelift_pose(gait::TRIPOD_A, drive_mix_, swing_deg), servos) ||
+            !pose_within_servo_limits(drive_prelift_pose(gait::TRIPOD_B, drive_mix_, swing_deg), servos) ||
             !pose_within_servo_limits(drive_lift_pose(gait::TRIPOD_A, drive_mix_, swing_deg), servos) ||
             !pose_within_servo_limits(drive_lift_pose(gait::TRIPOD_B, drive_mix_, swing_deg), servos) ||
             !pose_within_servo_limits(drive_transfer_pose(gait::TRIPOD_A, drive_mix_, swing_deg), servos) ||
@@ -298,9 +379,10 @@ void GaitController::update_drive(uint64_t now_us, MotionController &motion,
             drive_command_ = command;
             drive_mix_ = control::differential_mix(command.forward, command.turn, config::GAIT_TURN_GAIN);
             const uint32_t cycle_ms = drive_cycle_ms(command);
-            rc_lift_ms_ = at_least_ms(cycle_ms / 8u, 40u);
-            rc_transfer_ms_ = at_least_ms(cycle_ms / 4u, 80u);
-            rc_lower_ms_ = at_least_ms(cycle_ms / 8u, 40u);
+            rc_prelift_ms_ = at_least_ms(cycle_ms / 10u, gait::GAIT_PRELIFT_MIN_MS);
+            rc_lift_ms_ = at_least_ms(cycle_ms / 10u, gait::GAIT_LIFT_MIN_MS);
+            rc_transfer_ms_ = at_least_ms(cycle_ms / 4u, gait::GAIT_TRANSFER_MIN_MS);
+            rc_lower_ms_ = at_least_ms(cycle_ms / 8u, gait::GAIT_LOWER_MIN_MS);
         } else {
             rc_finish_stop_requested_ = true;
         }
@@ -333,6 +415,12 @@ void GaitController::update(uint64_t now_us, MotionController &motion,
     switch (state_) {
     case GaitState::MarchStand:
         if (phase_ready(now_us, state_entered_us_, 0, motion)) {
+            begin_phase(now_us, motion, servos, GaitState::MarchPreliftA, prelifted_pose(gait::TRIPOD_A),
+                        gait::MARCH_PRELIFT_TIME_MS);
+        }
+        break;
+    case GaitState::MarchPreliftA:
+        if (phase_ready(now_us, state_entered_us_, gait::MARCH_PRELIFT_TIME_MS, motion)) {
             begin_phase(now_us, motion, servos, GaitState::MarchLiftA, lifted_pose(gait::TRIPOD_A),
                         gait::MARCH_LIFT_TIME_MS);
         }
@@ -350,6 +438,12 @@ void GaitController::update(uint64_t now_us, MotionController &motion,
         break;
     case GaitState::MarchLowerA:
         if (phase_ready(now_us, state_entered_us_, gait::MARCH_LOWER_TIME_MS, motion)) {
+            begin_phase(now_us, motion, servos, GaitState::MarchPreliftB, prelifted_pose(gait::TRIPOD_B),
+                        gait::MARCH_PRELIFT_TIME_MS);
+        }
+        break;
+    case GaitState::MarchPreliftB:
+        if (phase_ready(now_us, state_entered_us_, gait::MARCH_PRELIFT_TIME_MS, motion)) {
             begin_phase(now_us, motion, servos, GaitState::MarchLiftB, lifted_pose(gait::TRIPOD_B),
                         gait::MARCH_LIFT_TIME_MS);
         }
@@ -371,8 +465,8 @@ void GaitController::update(uint64_t now_us, MotionController &motion,
             if (cycle_ >= gait::MARCH_CYCLES) {
                 finish_idle(motion);
             } else {
-                begin_phase(now_us, motion, servos, GaitState::MarchLiftA, lifted_pose(gait::TRIPOD_A),
-                            gait::MARCH_LIFT_TIME_MS);
+                begin_phase(now_us, motion, servos, GaitState::MarchPreliftA, prelifted_pose(gait::TRIPOD_A),
+                            gait::MARCH_PRELIFT_TIME_MS);
             }
         }
         break;
@@ -383,6 +477,20 @@ void GaitController::update(uint64_t now_us, MotionController &motion,
             if (mode_ == GaitMode::RCDrive && rc_finish_stop_requested_) {
                 begin_phase(now_us, motion, servos, GaitState::StopStand, STAND_POSE, gait::WALK_FINISH_MS);
             } else if (mode_ == GaitMode::RCDrive) {
+                begin_phase(now_us, motion, servos, GaitState::WalkAPrelift,
+                            drive_prelift_pose(gait::TRIPOD_A, drive_mix_, drive_swing_deg(drive_command_)),
+                            rc_prelift_ms_);
+            } else {
+                begin_phase(now_us, motion, servos, GaitState::WalkAPrelift, walk_prelift_pose(gait::TRIPOD_A),
+                            gait::WALK_PRELIFT_MS);
+            }
+        }
+        break;
+    case GaitState::WalkAPrelift:
+        if (phase_ready(now_us, state_entered_us_,
+                        mode_ == GaitMode::RCDrive ? rc_prelift_ms_ : gait::WALK_PRELIFT_MS,
+                        motion)) {
+            if (mode_ == GaitMode::RCDrive) {
                 begin_phase(now_us, motion, servos, GaitState::WalkALift,
                             drive_lift_pose(gait::TRIPOD_A, drive_mix_, drive_swing_deg(drive_command_)),
                             rc_lift_ms_);
@@ -410,10 +518,9 @@ void GaitController::update(uint64_t now_us, MotionController &motion,
         if (phase_ready(now_us, state_entered_us_,
                         mode_ == GaitMode::RCDrive ? rc_transfer_ms_ : gait::WALK_TRANSFER_MS,
                         motion)) {
-            RobotPose pose = mode_ == GaitMode::RCDrive
-                                 ? drive_transfer_pose(gait::TRIPOD_A, drive_mix_, drive_swing_deg(drive_command_))
-                                 : walk_transfer_pose(gait::TRIPOD_A);
-            set_tripod_lift(pose, gait::TRIPOD_A, false);
+            const RobotPose pose = mode_ == GaitMode::RCDrive
+                                       ? drive_lower_pose(gait::TRIPOD_A, drive_mix_, drive_swing_deg(drive_command_))
+                                       : walk_lower_pose(gait::TRIPOD_A);
             begin_phase(now_us, motion, servos, GaitState::WalkALower, pose,
                         mode_ == GaitMode::RCDrive ? rc_lower_ms_ : gait::WALK_LOWER_MS);
         }
@@ -425,6 +532,20 @@ void GaitController::update(uint64_t now_us, MotionController &motion,
             if (mode_ == GaitMode::RCDrive && rc_finish_stop_requested_) {
                 begin_phase(now_us, motion, servos, GaitState::StopStand, STAND_POSE, gait::WALK_FINISH_MS);
             } else if (mode_ == GaitMode::RCDrive) {
+                begin_phase(now_us, motion, servos, GaitState::WalkBPrelift,
+                            drive_prelift_pose(gait::TRIPOD_B, drive_mix_, drive_swing_deg(drive_command_)),
+                            rc_prelift_ms_);
+            } else {
+                begin_phase(now_us, motion, servos, GaitState::WalkBPrelift, walk_prelift_pose(gait::TRIPOD_B),
+                            gait::WALK_PRELIFT_MS);
+            }
+        }
+        break;
+    case GaitState::WalkBPrelift:
+        if (phase_ready(now_us, state_entered_us_,
+                        mode_ == GaitMode::RCDrive ? rc_prelift_ms_ : gait::WALK_PRELIFT_MS,
+                        motion)) {
+            if (mode_ == GaitMode::RCDrive) {
                 begin_phase(now_us, motion, servos, GaitState::WalkBLift,
                             drive_lift_pose(gait::TRIPOD_B, drive_mix_, drive_swing_deg(drive_command_)),
                             rc_lift_ms_);
@@ -452,10 +573,9 @@ void GaitController::update(uint64_t now_us, MotionController &motion,
         if (phase_ready(now_us, state_entered_us_,
                         mode_ == GaitMode::RCDrive ? rc_transfer_ms_ : gait::WALK_TRANSFER_MS,
                         motion)) {
-            RobotPose pose = mode_ == GaitMode::RCDrive
-                                 ? drive_transfer_pose(gait::TRIPOD_B, drive_mix_, drive_swing_deg(drive_command_))
-                                 : walk_transfer_pose(gait::TRIPOD_B);
-            set_tripod_lift(pose, gait::TRIPOD_B, false);
+            const RobotPose pose = mode_ == GaitMode::RCDrive
+                                       ? drive_lower_pose(gait::TRIPOD_B, drive_mix_, drive_swing_deg(drive_command_))
+                                       : walk_lower_pose(gait::TRIPOD_B);
             begin_phase(now_us, motion, servos, GaitState::WalkBLower, pose,
                         mode_ == GaitMode::RCDrive ? rc_lower_ms_ : gait::WALK_LOWER_MS);
         }
@@ -468,15 +588,15 @@ void GaitController::update(uint64_t now_us, MotionController &motion,
             if (mode_ == GaitMode::RCDrive && rc_finish_stop_requested_) {
                 begin_phase(now_us, motion, servos, GaitState::StopStand, STAND_POSE, gait::WALK_FINISH_MS);
             } else if (mode_ == GaitMode::RCDrive) {
-                begin_phase(now_us, motion, servos, GaitState::WalkALift,
-                            drive_lift_pose(gait::TRIPOD_A, drive_mix_, drive_swing_deg(drive_command_)),
-                            rc_lift_ms_);
+                begin_phase(now_us, motion, servos, GaitState::WalkAPrelift,
+                            drive_prelift_pose(gait::TRIPOD_A, drive_mix_, drive_swing_deg(drive_command_)),
+                            rc_prelift_ms_);
             } else if (cycle_ >= gait::WALK_DEMO_CYCLES) {
                 begin_phase(now_us, motion, servos, GaitState::WalkFinishGround, walk_ground_pose(),
                             gait::WALK_LOWER_MS);
             } else {
-                begin_phase(now_us, motion, servos, GaitState::WalkALift, walk_lift_pose(gait::TRIPOD_A),
-                            gait::WALK_LIFT_MS);
+                begin_phase(now_us, motion, servos, GaitState::WalkAPrelift, walk_prelift_pose(gait::TRIPOD_A),
+                            gait::WALK_PRELIFT_MS);
             }
         }
         break;
@@ -562,16 +682,20 @@ const char *gait_state_name(GaitState state) {
     switch (state) {
     case GaitState::Idle: return "IDLE";
     case GaitState::MarchStand: return "MARCH_STAND";
+    case GaitState::MarchPreliftA: return "MARCH_PRELIFT_A";
     case GaitState::MarchLiftA: return "MARCH_LIFT_A";
     case GaitState::MarchHoldA: return "MARCH_HOLD_A";
     case GaitState::MarchLowerA: return "MARCH_LOWER_A";
+    case GaitState::MarchPreliftB: return "MARCH_PRELIFT_B";
     case GaitState::MarchLiftB: return "MARCH_LIFT_B";
     case GaitState::MarchHoldB: return "MARCH_HOLD_B";
     case GaitState::MarchLowerB: return "MARCH_LOWER_B";
     case GaitState::WalkPrepare: return "PREPARE";
+    case GaitState::WalkAPrelift: return "A_PRELIFT";
     case GaitState::WalkALift: return "A_LIFT";
     case GaitState::WalkATransfer: return "A_TRANSFER";
     case GaitState::WalkALower: return "A_LOWER";
+    case GaitState::WalkBPrelift: return "B_PRELIFT";
     case GaitState::WalkBLift: return "B_LIFT";
     case GaitState::WalkBTransfer: return "B_TRANSFER";
     case GaitState::WalkBLower: return "B_LOWER";

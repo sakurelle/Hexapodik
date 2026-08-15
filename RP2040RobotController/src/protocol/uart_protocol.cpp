@@ -78,6 +78,7 @@ ParseResult parse_command(const char *line) {
 
     if (strcmp(tokens[0], "PING") == 0 && count == 1) { result.command.type = CommandType::Ping; return result; }
     if (strcmp(tokens[0], "STATUS") == 0 && count == 1) { result.command.type = CommandType::Status; return result; }
+    if (strcmp(tokens[0], "ZERO") == 0 && count == 1) { result.command.type = CommandType::Zero; return result; }
     if (strcmp(tokens[0], "STAND") == 0 && count == 1) { result.command.type = CommandType::Stand; return result; }
     if (strcmp(tokens[0], "HELP") == 0 && count == 1) { result.command.type = CommandType::Help; return result; }
     if (strcmp(tokens[0], "CAL") == 0 && count == 2 && strcmp(tokens[1], "SAVE") == 0) { result.command.type = CommandType::CalSave; return result; }
