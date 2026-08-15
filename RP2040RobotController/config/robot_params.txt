@@ -1,62 +1,34 @@
-# ============================================================
-# RC INPUT
-# ============================================================
-
+# RC input: GP0 forward/back, GP1 steering
 CONTROL_MODE=RC_PWM
-
 RC_MIN_US=900
 RC_CENTER_US=1500
 RC_MAX_US=2100
-
 RC_VALID_MIN_US=800
 RC_VALID_MAX_US=2200
-
 RC_DEADBAND_US=80
 RC_ACTIVE_THRESHOLD=0.12
-
 RC_FORWARD_REVERSED=false
 RC_STEER_REVERSED=false
-
 RC_MIN_SPEED=0.45
 RC_MAX_SPEED=1.00
-
 RC_SMOOTHING_MS=80
-
 RC_SIGNAL_TIMEOUT_MS=120
 RC_ARM_NEUTRAL_MS=500
-
 RC_DEBUG=true
 RC_DEBUG_RATE_HZ=10
-
 SERIAL_DASHBOARD=true
 SERIAL_DASHBOARD_RATE_HZ=10
 SERIAL_DASHBOARD_ANSI=true
 
-# ============================================================
-# GAIT
-# ============================================================
-
-# Stand pose
+# Current user-tuned standing pose. Cartesian neutral targets are FK(STAND).
 STAND_COXA_DEG=0
 STAND_FEMUR_DEG=9
 STAND_TIBIA_DEG=18
 
-# Gait lift shaping
-GAIT_PRELIFT_FEMUR_DELTA_DEG=6
-GAIT_PRELIFT_TIBIA_DELTA_DEG=0
-
-GAIT_LIFT_FEMUR_DELTA_DEG=14
-GAIT_LIFT_TIBIA_DELTA_DEG=-18
-
-GAIT_COXA_SWING_MIN_DEG=8
-GAIT_COXA_SWING_MAX_DEG=16
-
-GAIT_CYCLE_SLOW_MS=1200
-GAIT_CYCLE_FAST_MS=450
-
-GAIT_PRELIFT_MIN_MS=80
-GAIT_LIFT_MIN_MS=100
-GAIT_TRANSFER_MIN_MS=160
-GAIT_LOWER_MIN_MS=120
-
-GAIT_TURN_GAIN=1.0
+# Continuous Cartesian tripod gait
+GAIT_CYCLE_MS=400
+GAIT_DUTY_FACTOR=0.58
+GAIT_STEP_HEIGHT_MM=55
+GAIT_STRIDE_MM=35
+MAX_FORWARD_SPEED_MM_S=160
+MAX_YAW_RATE_DEG_S=45

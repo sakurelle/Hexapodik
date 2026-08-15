@@ -68,7 +68,9 @@ add_executable(RP2040RobotController
     src/control/drive_controller.cpp
     src/input/rc_pwm_input.cpp
     src/protocol/uart_protocol.cpp
-    src/robot/gait_controller.cpp
+    src/robot/gait_generator.cpp
+    src/robot/cartesian_validation.cpp
+    src/robot/kinematics.cpp
     src/robot/motion_controller.cpp
     src/servo/pio_servo_driver.cpp
     src/servo/servo_calibration.cpp

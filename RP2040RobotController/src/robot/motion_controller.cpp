@@ -96,6 +96,15 @@ void MotionController::set_leg_target(servo::Leg leg, const LegPose &pose) {
     set_target(target_, max_speed_deg_per_sec_);
 }
 
+void MotionController::set_immediate_pose(const RobotPose &pose) {
+    current_ = pose;
+    start_ = pose;
+    target_ = pose;
+    moving_ = false;
+    elapsed_us_ = 0;
+    duration_us_ = 0;
+}
+
 static bool step_value(float &current, float target, float step) {
     const float delta = target - current;
     if (fabsf(delta) <= step) {

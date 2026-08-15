@@ -23,6 +23,9 @@ public:
                           MotionInterpolation interpolation = MotionInterpolation::SmootherStep);
     void set_servo_target(servo::Leg leg, servo::Joint joint, float angle_deg);
     void set_leg_target(servo::Leg leg, const LegPose &pose);
+    // Used by the continuous Cartesian control loop after its own IK and
+    // limit checks.  It intentionally does not create a timed motion phase.
+    void set_immediate_pose(const RobotPose &pose);
     void update(uint32_t elapsed_us);
 
     const RobotPose &current_pose() const { return current_; }

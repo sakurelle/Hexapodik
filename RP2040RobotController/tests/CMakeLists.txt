@@ -28,8 +28,11 @@ add_executable(rp2040_robot_controller_tests
     test_main.cpp
     ../src/control/drive_controller.cpp
     ../src/protocol/uart_protocol.cpp
-    ../src/robot/gait_controller.cpp
+    ../src/robot/gait_generator.cpp
+    ../src/robot/cartesian_validation.cpp
+    ../src/robot/kinematics.cpp
     ../src/robot/motion_controller.cpp
+    ../src/app/startup_controller.cpp
     ../src/servo/servo_calibration.cpp
     ../src/servo/servo_frame_scheduler.cpp
     ../src/storage/config_storage.cpp

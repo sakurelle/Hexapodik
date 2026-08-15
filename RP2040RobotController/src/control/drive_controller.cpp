@@ -49,25 +49,16 @@ DriveCommand apply_deadzone_and_speed(float x, float y, float deadzone,
     }
 
     const float normalized = std::min(1.0f, (radius - deadzone) / (1.0f - deadzone));
-    const float scale = normalized / radius;
+    // Map the first post-deadband command to RC_MIN_SPEED while retaining its
+    // direction.  Cartesian conversion consumes these processed components,
+    // so the minimum useful speed is applied exactly once.
+    const float scale = interp_speed(normalized, min_speed, max_speed) / radius;
     return DriveCommand{
         clamp_unit(y * scale),
         clamp_unit(x * scale),
-        interp_speed(normalized, min_speed, max_speed),
+        std::min(1.0f, std::sqrt((y * scale) * (y * scale) + (x * scale) * (x * scale))),
         true
     };
-}
-
-DriveMix differential_mix(float forward, float turn, float turn_gain) {
-    DriveMix mix{forward + turn * turn_gain, forward - turn * turn_gain};
-    const float max_abs = std::max(std::fabs(mix.left), std::fabs(mix.right));
-    if (max_abs > 1.0f) {
-        mix.left /= max_abs;
-        mix.right /= max_abs;
-    }
-    mix.left = clamp_unit(mix.left);
-    mix.right = clamp_unit(mix.right);
-    return mix;
 }
 
 bool DriveController::signal_valid(const RcPwmSnapshot &snapshot, uint64_t now_us) const {
@@ -164,15 +155,13 @@ DriveControllerState DriveController::update(const RcPwmSnapshot &snapshot, uint
         command = DriveCommand{};
     }
 
-    DriveMix mix = differential_mix(command.forward, command.turn, config::GAIT_TURN_GAIN);
-    const float command_magnitude = std::max(std::fabs(mix.left), std::fabs(mix.right));
+    const float command_magnitude = std::sqrt(command.forward * command.forward +
+                                              command.turn * command.turn);
     if (command.active && command_magnitude < config::RC_ACTIVE_THRESHOLD) {
         command = DriveCommand{};
-        mix = DriveMix{};
     }
 
     state_.command = command;
-    state_.mix = mix;
     state_.command_magnitude = command.active ? command_magnitude : 0.0f;
     return state_;
 }

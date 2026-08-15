@@ -14,7 +14,7 @@
             "environment": {
                 "PICO_SDK_PATH": "$env{USERPROFILE}/.pico-sdk/sdk/2.3.0",
                 "PICO_TOOLCHAIN_PATH": "$env{USERPROFILE}/.pico-sdk/toolchain/15_2_Rel1",
-                "PATH": "$env{USERPROFILE}/.pico-sdk/toolchain/15_2_Rel1/bin;$env{USERPROFILE}/.pico-sdk/picotool/2.3.0/picotool;$env{USERPROFILE}/.platformio/packages/tool-cmake/bin;$env{USERPROFILE}/.platformio/packages/tool-ninja;$penv{PATH}"
+                "PATH": "$env{USERPROFILE}/.pico-sdk/toolchain/15_2_Rel1/bin;$env{USERPROFILE}/.pico-sdk/picotool/2.3.0/picotool;$env{USERPROFILE}/.pico-sdk/ninja/v1.13.2;$penv{PATH}"
             }
         }
     ],

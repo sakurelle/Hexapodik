@@ -1,370 +1,55 @@
 # RP2040RobotController
 
-`RP2040RobotController` — независимый проект прошивки для Waveshare RP2040-Zero, управляющий 18 сервоприводами шестиногого робота через PIO. Это не замена `ServoTester`: `ServoTester` остается старым тестом одной ноги на ESP32, а этот каталог содержит отдельную прошивку контроллера всех ног.
-
-Проект использует C++ и официальный Raspberry Pi Pico C/C++ SDK с CMake. Arduino Framework и аппаратный PWM для всех сервоприводов не используются.
-
-## Распиновка
-
-Ориентация задана для вида сверху: задняя часть робота направлена к наблюдателю, передняя — от наблюдателя, правая сторона робота находится слева на виде сверху.
-
-| Нога | Сустав | GPIO |
-| --- | --- | --- |
-| FR | Coxa | GP2 |
-| FR | Femur | GP3 |
-| FR | Tibia | GP4 |
-| MR | Coxa | GP5 |
-| MR | Femur | GP6 |
-| MR | Tibia | GP7 |
-| RR | Coxa | GP8 |
-| RR | Femur | GP9 |
-| RR | Tibia | GP10 |
-| RL | Coxa | GP11 |
-| RL | Femur | GP12 |
-| RL | Tibia | GP13 |
-| ML | Coxa | GP14 |
-| ML | Femur | GP15 |
-| ML | Tibia | GP26 |
-| FL | Coxa | GP27 |
-| FL | Femur | GP28 |
-| FL | Tibia | GP29 |
-
-UART0: TX GP0, RX GP1, 115200 baud, 8N1, уровни 3,3 В TTL.
-
-Во временном режиме RC-управления `CONTROL_MODE=RC_PWM` эти же пины используются не как UART, а как входы PWM от приемника:
+The firmware controls all 18 servos of the hexapod directly on RP2040. Its
+only locomotion path is:
 
 ```text
-GP0 = forward/back
-GP1 = left/right
-GND receiver = GND RP2040
+RC PWM (GP0 forward/back, GP1 steering)
+  -> DriveController -> BodyVelocityCommand
+  -> continuous Cartesian tripod gait -> IK
+  -> servo calibration -> PIO/DMA at 50 Hz
 ```
 
-GPIO RP2040 работают с логикой 3,3 В. Перед прямым подключением нужно убедиться, что PWM-сигнал приемника не превышает допустимый уровень RP2040. Если приемник выдает 5 В logic, используйте level shifter или резистивный делитель.
+`+X` is forward, `+Y` left, and `+Z` up. Geometry is defined once in
+`include/robot/robot_geometry.hpp`; its leg order is `FR, MR, RR, RL, ML, FL`.
+The curved Tibia is currently represented by a 125.24 mm effective straight
+link from Tibia axis to foot contact.
 
-GP16 не используется: на Waveshare RP2040-Zero он занят встроенным WS2812.
+The two tripods are `FR/ML/RR` and `FL/MR/RL`, separated by phase 0.5. Stance
+targets move opposite to body velocity, including the per-leg yaw term
+`-omega x r`. Swing targets follow one continuous raised trajectory.
 
-## Питание
+The neutral Cartesian targets are calculated with FK from the current
+`STAND_*_DEG` values in `config/robot_params.txt`. User-tuned RC and stand
+values are therefore retained.
 
-Сервоприводы должны питаться от отдельного источника питания, рассчитанного на их суммарный ток. Нельзя питать сервы от USB или вывода 5V платы RP2040-Zero. Земля источника питания серв и земля RP2040-Zero должны быть общей. Прошивка и успешная компиляция не доказывают механическую безопасность реального робота.
-
-## PIO-драйвер
-
-Используются две state machine блока PIO0:
-
-| State machine | GPIO | Каналов |
-| --- | --- | --- |
-| PIO0 SM0 | GP2-GP15 | 14 |
-| PIO0 SM1 | GP26-GP29 | 4 |
-
-Слой `servo_frame_scheduler` строит для каждого 20 мс кадра список событий: время события и новая битовая маска группы GPIO. События формируются из независимых длительностей импульсов всех серв, сортируются, объединяются при одинаковом времени и превращаются в пары слов `mask, delay` для PIO.
-
-PIO-программа сама меняет маску выходов и выдерживает задержку между событиями. DMA передает готовый буфер слов в FIFO state machine. CPU только готовит следующий буфер и обслуживает переключение кадров; основной цикл не формирует PWM программными задержками.
-
-При `DISABLE ALL` DMA останавливается, state machine выключаются, FIFO очищаются, а все сигнальные GPIO устанавливаются в логический ноль.
-
-## Фазовое распределение
-
-Начала импульсов трех серв одной ноги совпадают, а ноги разнесены внутри кадра:
-
-| Нога | Фаза |
-| --- | --- |
-| FR | 0 мкс |
-| MR | 3333 мкс |
-| RR | 6667 мкс |
-| RL | 10000 мкс |
-| ML | 13333 мкс |
-| FL | 16667 мкс |
-
-Таблица находится в `include/servo/servo_config.hpp`. Компиляционные проверки гарантируют, что фазы находятся внутри кадра и максимальный импульс 2500 мкс успевает завершиться до 20 мс.
-
-## Калибровка
-
-Временные тестовые значения для правых ног `FR`, `MR`, `RR`:
+## Cartesian gait parameters
 
 ```text
-pulse_minus_45_us = 2000
-center_us         = 1500
-pulse_plus_45_us  = 1000
+GAIT_CYCLE_MS
+GAIT_DUTY_FACTOR
+GAIT_STEP_HEIGHT_MM
+GAIT_STRIDE_MM
+MAX_FORWARD_SPEED_MM_S
+MAX_YAW_RATE_DEG_S
 ```
 
-Временные зеркальные тестовые значения для левых ног `RL`, `ML`, `FL`:
-
-```text
-pulse_minus_45_us = 1000
-center_us         = 1500
-pulse_plus_45_us  = 2000
-```
-
-Это не окончательная механическая калибровка. Направление вращения задается самими значениями `pulse_minus_45_us`, `center_us`, `pulse_plus_45_us`; отдельного флага инверсии нет.
-
-Значения по умолчанию находятся в `include/servo/servo_config.hpp`. Сохраненная Flash-конфигурация содержит magic, version, payload size и CRC32. Flash автоматически не перезаписывается: запись выполняется только командой `CAL SAVE`.
-
-## Начальная стойка
-
-`ZERO_POSE`, `CENTER_POSE` и `STAND_POSE` находятся в `include/robot/robot_pose.hpp`.
-
-`ZERO_POSE` и совместимый alias `CENTER_POSE`:
-
-```text
-Coxa  = 0°
-Femur = 0°
-Tibia = 0°
-```
-
-Это механические нули после сборки и сервисная поза для отладки. Рабочая стойка `STAND_POSE` задается build-time параметрами из `config/robot_params.txt`:
-
-```text
-STAND_COXA_DEG=0
-STAND_FEMUR_DEG=9
-STAND_TIBIA_DEG=0
-```
-
-## Безопасный запуск
-
-Автомат запуска:
-
-```text
-BOOT -> OUTPUTS_DISABLED -> CENTERING -> MOVING_TO_STAND -> HOLDING_STAND
-```
-
-После сброса сервосигналы удерживаются в нуле. Затем прошивка ждет 1000 мс без импульсов, включает центр 1500 мкс, удерживает центр 1000 мс, плавно переводит все суставы в `STAND_POSE` примерно за 3000 мс и удерживает стойку. Все ожидания реализованы через проверку времени; UART продолжает обрабатываться в каждом состоянии.
-
-Если `AUTO_STAND_ON_BOOT` в `include/app/startup_controller.hpp` установить в `false`, контроллер останется в центре и будет ждать команду `STAND`.
-
-## UART-команды
-
-Команды регистронезависимые. Поддерживаются CR, LF и CRLF. Максимальная длина строки — 128 символов.
-
-```text
-PING
-STATUS
-ALL CENTER
-ZERO
-STAND
-ENABLE ALL
-DISABLE ALL
-MARCH
-WALK DEMO
-WALK STOP
-GAIT STATUS
-SERVO <leg> <joint> <angle>
-LEG <leg> <coxa> <femur> <tibia>
-CAL SHOW <leg> <joint>
-CAL SET <leg> <joint> MINUS45 <pulse_us>
-CAL SET <leg> <joint> PLUS45 <pulse_us>
-CAL SAVE
-CAL LOAD
-CAL RESET
-HELP
-```
-
-Примеры:
-
-```text
-PING
-OK PONG
-```
-
-```text
-SERVO FR COXA 10
-OK SERVO FR COXA 10.00
-```
-
-Ошибки:
-
-```text
-ERR UNKNOWN_COMMAND
-ERR INVALID_ARGUMENT
-ERR INVALID_LEG
-ERR INVALID_JOINT
-ERR ANGLE_OUT_OF_RANGE
-ERR PULSE_OUT_OF_RANGE
-ERR CONFIG_INVALID
-```
-
-`STATUS` выводит состояние автомата, состояние выходов, источник конфигурации, версию конфигурации, счетчики ошибок UART/PIO-DMA и номер кадра.
-
-`ZERO` переводит суставы в механические нули. `STAND` переводит робота в рабочую стойку из `STAND_*_DEG`.
-
-`MARCH` запускает два цикла марша на месте без движения Coxa: tripod A (`FR`, `ML`, `RR`) сначала проходит pre-lift, затем полный lift, удерживается и опускается, затем то же делает tripod B (`FL`, `MR`, `RL`). `WALK DEMO` запускает три цикла открытой tripod-походки в пространстве углов: Coxa качается на 16 градусов, а Femur/Tibia поднимают и опускают ноги через `PRELIFT -> LIFT -> TRANSFER -> LOWER`. Это аппаратный тест без IK, без обратной связи и без гарантии прямолинейного движения робота.
-
-`WALK STOP` останавливает активную походку: сначала опускает все ноги в текущей фазе, затем плавно возвращает точную `STAND_POSE` и продолжает удержание стойки. `ALL CENTER`, `STAND` и `DISABLE ALL` отменяют активную походку; `DISABLE ALL` имеет абсолютный приоритет и сразу выключает выходы.
-
-`GAIT STATUS` выводит состояние контроллера походки:
-
-```text
-OK GAIT MODE WALK STATE A_TRANSFER CYCLE 2 ACTIVE 1
-```
-
-Автодемо по умолчанию выключено. Для включения нужно собрать прошивку с `AUTO_DEMO_GAIT_ON_BOOT = true` в `include/robot/gait_config.hpp`: после перехода startup-автомата в `HOLDING_STAND` контроллер ждет 3000 мс, выполняет `MARCH`, возвращается в стойку, ждет 2000 мс, выполняет `WALK DEMO` и остается в стойке.
-
-## RC PWM-управление
-
-Текущий режим по умолчанию задается в `config/robot_params.txt`:
-
-```text
-CONTROL_MODE=RC_PWM
-RC_MIN_US=900
-RC_CENTER_US=1500
-RC_MAX_US=2100
-RC_VALID_MIN_US=800
-RC_VALID_MAX_US=2200
-RC_DEADBAND_US=80
-RC_ACTIVE_THRESHOLD=0.12
-RC_MIN_SPEED=0.45
-RC_MAX_SPEED=1.00
-RC_SIGNAL_TIMEOUT_MS=120
-RC_ARM_NEUTRAL_MS=500
-SERIAL_DASHBOARD=true
-SERIAL_DASHBOARD_RATE_HZ=10
-SERIAL_DASHBOARD_ANSI=true
-```
-
-При `RC_PWM` прошивка не инициализирует UART0 на GP0/GP1. Оба канала читаются через GPIO IRQ по rising/falling edge: на rising edge сохраняется `time_us_64()`, на falling edge вычисляется ширина импульса, проверяется диапазон `RC_VALID_MIN_US..RC_VALID_MAX_US`, и только последнее корректное значение передается в основной цикл. Ожиданий импульса, sleep или busy wait в основном цикле нет.
-
-RC-калибровки во Flash больше нет: прошивка использует только build-time значения из `config/robot_params.txt`. Валидный входной диапазон `800..2200` мкс нужен для отбраковки импульсов приемника, а нормализация перед расчетом команды зажимает raw-значение в `900..2100` мкс.
-
-Нейтраль фиксированная: `1420..1580` мкс всегда дает ровно `0`. Ниже нейтрали канал нормализуется линейно как `900 -> -1`, `1420 -> 0`; выше нейтрали как `1580 -> 0`, `2100 -> +1`. `RC_FORWARD_REVERSED` и `RC_STEER_REVERSED` применяются после нормализации. Радиальная RC-deadzone не используется; нулевую команду дает фиксированная нейтральная зона канала и дополнительный `RC_ACTIVE_THRESHOLD`.
-
-Перед arming оба канала должны быть валидны и оба стика должны находиться в нейтрали непрерывно `RC_ARM_NEUTRAL_MS=500` мс. На `499` мс состояние еще не armed, на `500` мс становится armed. Если стик вышел из нейтрали до завершения ожидания, таймер запускается заново.
-
-USB CDC используется для диагностического dashboard. При `SERIAL_DASHBOARD=true` вывод ограничен `SERIAL_DASHBOARD_RATE_HZ`. ANSI-режим сначала очищает экран через `ESC[2J ESC[H`, затем обновляет фиксированный многострочный экран через `ESC[H` и очистку строк `ESC[K`:
-
-```text
-RP2040 HEXAPOD RC CONTROL
-----------------------------------------
-RC FWD   : 1500 us   normalized: +0.00
-RC STEER : 1500 us   normalized: +0.00
-AGE FWD  :    0 ms
-AGE STR  :    0 ms
-
-SIGNAL   : VALID
-ARM      : READY
-ACTIVE   : NO
-SPEED    : 0.00
-ACTIVE THR  : 0.12
-CMD MAG     : 0.00
-STEP SWING  : 0.0 deg
-STEP SPEED  : 0.00
-MOTION      : SMOOTHERSTEP
-PHASE       : A_TRANSFER
-PHASE %     :  42
-LAST EVENT  : RC ARMED, 0.8 s ago
-
-DRIVE L  : +0.00
-DRIVE R  : +0.00
-
-GAIT     : STAND
-----------------------------------------
-```
-
-Если `SERIAL_DASHBOARD_ANSI=false`, прошивка печатает одну строку через `\r` без `\n`, с padding в конце строки. События сохраняются как последняя строка `LAST EVENT`, чтобы старое сообщение `RC SIGNAL LOST` не оставалось под dashboard как будто ошибка активна сейчас.
-
-После normalizing и differential mixing команда дополнительно фильтруется: если `max(abs(left_command), abs(right_command)) < RC_ACTIVE_THRESHOLD`, `DriveCommand.active=false`, и gait не стартует. Это защищает от марша на месте, когда стики почти в центре.
-
-Steering реализован как differential mixing:
-
-```text
-left_command  = forward + turn
-right_command = forward - turn
-```
-
-Затем значения нормализуются так, чтобы абсолютное значение не превышало `1.0`. Левая сторона: `FL`, `ML`, `RL`; правая сторона: `FR`, `MR`, `RR`. Это не меняет tripod-группы: `A = FR + ML + RR`, `B = FL + MR + RL`.
-
-Failsafe: если любой канал не обновлялся дольше `RC_SIGNAL_TIMEOUT_MS=120` мс, новые drive-команды не принимаются, `armed=false`, походка безопасно доводит текущую половину шага до земли и возвращается в `STAND_POSE`. После восстановления сигнала снова требуется 500 мс нейтрали; Servo PWM при этом не отключается.
-
-Параметры стойки и походки задаются здесь же:
-
-```text
-STAND_COXA_DEG=0
-STAND_FEMUR_DEG=9
-STAND_TIBIA_DEG=0
-
-GAIT_PRELIFT_FEMUR_DELTA_DEG=6
-GAIT_PRELIFT_TIBIA_DELTA_DEG=0
-
-GAIT_LIFT_FEMUR_DELTA_DEG=14
-GAIT_LIFT_TIBIA_DELTA_DEG=-18
-
-GAIT_COXA_SWING_MIN_DEG=8
-GAIT_COXA_SWING_MAX_DEG=16
-
-GAIT_PRELIFT_MIN_MS=80
-GAIT_LIFT_MIN_MS=100
-GAIT_TRANSFER_MIN_MS=160
-GAIT_LOWER_MIN_MS=120
-```
-
-В каждой lifting-фазе сначала выполняется `PRELIFT`: Femur поднимается на `GAIT_PRELIFT_FEMUR_DELTA_DEG`, Tibia меняется на `GAIT_PRELIFT_TIBIA_DELTA_DEG`. Затем `LIFT` переводит ногу в полную lift-позу относительно `STAND_POSE`, после чего идет `TRANSFER` по Coxa и `LOWER` обратно на землю.
-
-Файл `config/robot_params.txt` является build-time конфигурацией. CMake перед сборкой генерирует `build/generated/robot_params.hpp`; на RP2040 файл `.txt` во время работы не читается.
-
-## Сборка
-
-Установите официальный Pico SDK отдельно от этого репозитория и задайте переменную:
-
-```powershell
-$env:PICO_SDK_PATH="C:\path\to\pico-sdk"
-```
-
-Сборка:
-
-```powershell
-cd RP2040RobotController
-.\build.ps1
-```
-
-Ожидаемые артефакты:
-
-```text
-build/RP2040RobotController.elf
-build/RP2040RobotController.uf2
-```
-
-Если Pico SDK отсутствует, проект не переключается на Arduino. Установите официальный SDK и его submodules, затем повторите сборку.
-
-## Прошивка
-
-Автоматический поиск диска `RPI-RP2`:
-
-```powershell
-.\flash.ps1
-```
-
-Явно указать диск:
-
-```powershell
-.\flash.ps1 E:
-```
-
-Скрипт только копирует UF2 и не удаляет посторонние файлы.
-
-## Host-тесты
-
-Чистая логика вынесена так, чтобы ее можно было собрать обычным C++ компилятором:
-
-```powershell
-cd RP2040RobotController\tests
-cmake -S . -B build
-cmake --build build
-.\build\rp2040_robot_controller_tests.exe
-```
-
-Тесты проверяют преобразование углов в импульсы, возрастающую и убывающую калибровку, зеркальные временные значения левых/правых серв, ограничение диапазонов, CRC32, magic/version конфигурации, разбор UART-команд, построение фазового расписания и высокоуровневые фазы `GaitController`.
-
-## Первый безопасный запуск
-
-1. Не подключать сразу все сервы.
-2. Сначала проверить сборку прошивки.
-3. Проверить сигнал GP2 осциллографом или логическим анализатором.
-4. Подключить только FR Coxa.
-5. Проверить `ZERO_POSE`/`CENTER_POSE`.
-6. Проверить небольшое движение.
-7. Подключить одну ногу FR.
-8. Проверить команду `LEG FR 0 9 0`.
-9. Только после этого подключить остальные ноги.
-10. При первом запуске всех ног поднять корпус робота над поверхностью.
-11. Держать физический выключатель питания серв доступным.
-12. После проверки `STAND` с поднятым корпусом отправить `MARCH` и убедиться, что Coxa не двигаются, а группы ног чередуются: `FR/ML/RR`, затем `FL/MR/RL`.
-13. Если марш прошел без провалов и рывков, отправить `WALK DEMO` только при поднятом корпусе или на подставке; это открытый тест походки, а не готовая ходьба по полу.
-14. Во время любого теста проверить, что `WALK STOP` возвращает робота в стойку, а `DISABLE ALL` немедленно снимает сигналы.
+The serial dashboard reports `ENGINE : CARTESIAN`, RC/arming state, velocity,
+phase, active swing legs, and IK status. If an IK target or logical joint limit
+is invalid, the controller holds the last valid pose rather than producing a
+servo command from invalid data.
+
+## Build and first test
+
+Use VS Code task **Clean Rebuild Project**, then verify the generated UF2
+timestamp before flashing. Do not flash automatically from the build task.
+
+1. Lift the robot above the floor and prepare a servo-power disconnect.
+2. Flash the freshly built UF2, power servos, and let startup reach `STAND`.
+3. Apply a very small forward command and inspect all six legs.
+4. Test steering separately; each foot must follow its own XY arc.
+5. Release sticks and wait for `GAIT : IDLE` with all feet neutral/grounded.
+6. Only after the suspended test is correct, place the robot on the floor.
+
+PIO programs, DMA scheduling, GPIO assignment, servo calibration, and the
+20 ms servo frame are intentionally independent of locomotion and unchanged.

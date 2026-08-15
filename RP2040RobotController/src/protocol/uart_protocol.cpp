@@ -87,10 +87,6 @@ ParseResult parse_command(const char *line) {
     if (strcmp(tokens[0], "ALL") == 0 && count == 2 && strcmp(tokens[1], "CENTER") == 0) { result.command.type = CommandType::AllCenter; return result; }
     if (strcmp(tokens[0], "ENABLE") == 0 && count == 2 && strcmp(tokens[1], "ALL") == 0) { result.command.type = CommandType::EnableAll; return result; }
     if (strcmp(tokens[0], "DISABLE") == 0 && count == 2 && strcmp(tokens[1], "ALL") == 0) { result.command.type = CommandType::DisableAll; return result; }
-    if (strcmp(tokens[0], "MARCH") == 0 && count == 1) { result.command.type = CommandType::March; return result; }
-    if (strcmp(tokens[0], "WALK") == 0 && count == 2 && strcmp(tokens[1], "DEMO") == 0) { result.command.type = CommandType::WalkDemo; return result; }
-    if (strcmp(tokens[0], "WALK") == 0 && count == 2 && strcmp(tokens[1], "STOP") == 0) { result.command.type = CommandType::WalkStop; return result; }
-    if (strcmp(tokens[0], "GAIT") == 0 && count == 2 && strcmp(tokens[1], "STATUS") == 0) { result.command.type = CommandType::GaitStatus; return result; }
 
     if (strcmp(tokens[0], "SERVO") == 0 && count == 4) {
         result.command.type = CommandType::Servo;

@@ -24,11 +24,6 @@ struct DriveCommand {
     bool active = false;
 };
 
-struct DriveMix {
-    float left = 0.0f;
-    float right = 0.0f;
-};
-
 struct DriveControllerState {
     uint16_t raw_forward_us = 1500;
     uint16_t raw_steer_us = 1500;
@@ -44,7 +39,6 @@ struct DriveControllerState {
     float y = 0.0f;
     float command_magnitude = 0.0f;
     DriveCommand command{};
-    DriveMix mix{};
 };
 
 constexpr uint64_t rc_age_us(uint64_t now_us, uint64_t updated_us) {
@@ -55,7 +49,6 @@ float normalize_rc_channel_fixed(uint16_t pulse_us, bool reversed);
 bool rc_pulse_neutral(uint16_t pulse_us);
 DriveCommand apply_deadzone_and_speed(float x, float y, float deadzone,
                                       float min_speed, float max_speed);
-DriveMix differential_mix(float forward, float turn, float turn_gain);
 
 class DriveController {
 public:
