@@ -1,0 +1,815 @@
+Ты работаешь внутри проекта `RP2040RobotController`.
+
+Существующий код — старый прототип под другую плату. Он больше не нужен. Полностью удали старую реализацию и создай новый проект с нуля. Не пытайся сохранять совместимость со старой архитектурой.
+
+Цель: прошивка real-time контроллера шестиногого робота на Waveshare RP2040-Plus.
+
+## 1. Технологии
+
+Использовать:
+
+* C++17;
+* Raspberry Pi Pico SDK;
+* CMake;
+* PIO + DMA для управления сервами;
+* без Arduino;
+* без динамического выделения памяти в основном цикле;
+* без blocking delays в locomotion loop.
+
+Основной control loop: `200 Hz`.
+
+Сервоприводы: `50 Hz`, период `20000 us`.
+
+## 2. GPIO
+
+```text
+GP0 — RC Forward/Back
+GP1 — RC Left/Right
+
+FL:
+GP2 Coxa
+GP3 Femur
+GP4 Tibia
+GP28 Contact
+
+ML:
+GP5 Coxa
+GP6 Femur
+GP7 Tibia
+GP27 Contact
+
+RL:
+GP8 Coxa
+GP9 Femur
+GP10 Tibia
+GP26 Contact
+
+RR:
+GP11 Coxa
+GP12 Femur
+GP13 Tibia
+GP22 Contact
+
+MR:
+GP14 Coxa
+GP15 Femur
+GP16 Tibia
+GP21 Contact
+
+FR:
+GP17 Coxa
+GP18 Femur
+GP19 Tibia
+GP20 Contact
+```
+
+GP2...GP19 специально образуют непрерывный диапазон из 18 GPIO для PIO.
+
+GP0/GP1 сейчас используются для RC PWM. Архитектура command source должна позволять позже заменить RC на UART0 с Raspberry Pi без изменения locomotion.
+
+## 3. Структура проекта
+
+Сделай примерно такую архитектуру:
+
+```text
+src/
+    main.cpp
+
+    config/
+        robot_config.h
+        servo_config.cpp/.h
+
+    math/
+        vec2.h
+        vec3.h
+
+    robot/
+        robot_geometry.cpp/.h
+        kinematics.cpp/.h
+        workspace.cpp/.h
+
+    locomotion/
+        body_command.h
+        gait_generator.cpp/.h
+        contact_adaptation.cpp/.h
+        support_polygon.cpp/.h
+        locomotion_controller.cpp/.h
+
+    drivers/
+        servo_controller.cpp/.h
+        rc_input.cpp/.h
+        contact_sensors.cpp/.h
+
+pio/
+    servo_output.pio
+
+tests/
+```
+
+Названия можно немного изменить, но ответственность модулей не смешивать.
+
+## 4. Геометрия
+
+BODY frame:
+
+```text
++X forward
++Y left
++Z up
+```
+
+Размеры:
+
+```cpp
+L_COXA  = 44.0f;
+L_FEMUR = 80.0f;
+L_TIBIA = 125.24f;
+```
+
+Mechanical model offsets:
+
+```cpp
+FEMUR_MODEL_ZERO = +35.27 deg;
+TIBIA_MODEL_ZERO = -104.65 deg;
+COXA_MODEL_ZERO  = 0 deg;
+```
+
+Использовать строго следующую конвенцию:
+
+```text
+physical_angle = logical_angle + model_zero_offset
+logical_angle  = physical_angle - model_zero_offset
+```
+
+Mount позиции Coxa в BODY:
+
+```text
+FR: +82.93, -62.79, yaw -45°
+MR:  +0.25, -80.25, yaw -90°
+RR: -82.95, -62.81, yaw -135°
+
+RL: -82.95, +62.81, yaw +135°
+ML:  +0.25, +80.25, yaw +90°
+FL: +82.93, +62.79, yaw +45°
+```
+
+BODY -> LEG:
+
+```text
+p_leg = Rz(-mountYaw) * (p_body - mountPosition)
+```
+
+LEG -> BODY — обратное преобразование.
+
+## 5. Neutral stand
+
+Логическая стойка:
+
+```cpp
+Coxa  = 0 deg;
+Femur = 0 deg;
+Tibia = 0 deg;
+```
+
+Neutral XYZ каждой ноги получить через FK этой стойки и затем преобразовать из LEG в BODY.
+
+Не хардкодить отдельно XYZ стойки.
+
+## 6. Forward Kinematics
+
+Для физических углов:
+
+```text
+radial =
+    Lcoxa
+    + Lfemur*cos(qFemur)
+    + Ltibia*cos(qFemur + qTibia)
+
+z =
+    Lfemur*sin(qFemur)
+    + Ltibia*sin(qFemur + qTibia)
+
+x = radial*cos(qCoxa)
+y = radial*sin(qCoxa)
+```
+
+FK принимает logical angles, внутри применяет model zero offsets.
+
+## 7. Analytical IK
+
+IK работает только с углами и координатами. Она ничего не должна знать про PWM/pulse_us.
+
+Для точки LEG `(x,y,z)`:
+
+```text
+qCoxa = atan2(y,x)
+
+R = sqrt(x²+y²) - Lcoxa
+D = sqrt(R²+z²)
+```
+
+Решить обычную planar 2-link IK для Femur/Tibia.
+
+Обязательно:
+
+* проверять reachability;
+* clamp аргументов `acos` в `[-1,1]`;
+* проверять `isfinite`;
+* учитывать model zero offsets;
+* рассматривать обе возможные ветви колена;
+* отбрасывать решения вне limits;
+* из допустимых выбирать ближайшее к предыдущему joint solution.
+
+Никаких numerical IK/Jacobian в основном loop.
+
+## 8. Joint safety
+
+Начальные logical limits вынести в config:
+
+```text
+Coxa:  -60 ... +60 deg
+Femur: -75 ... +75 deg
+Tibia: -75 ... +75 deg
+```
+
+Также иметь `5°` safety margin.
+
+Проверять singularity:
+
+```cpp
+M = abs(sin(qTibiaPhysical));
+```
+
+Считать положение небезопасным при:
+
+```cpp
+M < 0.15
+```
+
+Все значения должны быть легко изменяемыми в `robot_config.h`.
+
+## 9. ServoConfig
+
+Вся зависимость от реальной установки серв должна находиться только здесь.
+
+Для каждого из 18 приводов хранить:
+
+```cpp
+gpio
+center_us
+direction        // +1 / -1
+us_per_degree
+min_pulse_us
+max_pulse_us
+```
+
+Преобразование:
+
+```cpp
+pulse =
+    center_us
+    + direction * logical_angle_deg * us_per_degree;
+```
+
+После этого проверить диапазон pulse.
+
+Начальные значения:
+
+```text
+center_us = 1500
+min = 1000
+max = 2000
+```
+
+`us_per_degree` вычислить для диапазона ±75° между 1000 и 2000 us.
+
+Начальную зеркальность сделать:
+
+```text
+FL ML RL: +1
+FR MR RR: -1
+```
+
+для соответствующих Coxa/Femur/Tibia.
+
+Вся таблица должна находиться в одном месте, чтобы позже можно было откалибровать каждую серву отдельно.
+
+Не добавлять mirroring в IK или gait.
+
+## 10. PIO + DMA серв
+
+Не использовать программный PWM через interrupts.
+
+Реализовать PIO/DMA драйвер для всех GP2...GP19.
+
+Идея:
+
+* один PIO state machine управляет 18 GPIO как одним 18-bit mask;
+* в начале servo frame все необходимые линии HIGH;
+* падения линий происходят в соответствии с индивидуальными pulse width;
+* после последнего pulse все LOW до конца `20 ms`;
+* CPU формирует event buffer;
+* DMA передаёт его PIO;
+* использовать double buffering;
+* обновление нового набора pulse не должно ломать текущий frame.
+
+Требования:
+
+* 18 независимых pulse width;
+* frame точно около 20 ms;
+* отсутствие jitter от основного control loop;
+* все GPIO переключаются только PIO;
+* при invalid IK оставить предыдущий корректный servo target, а не отправлять мусор.
+
+## 11. RC input
+
+GP0 и GP1 принимать через GPIO edge IRQ с timestamp.
+
+Не делать busy polling.
+
+Default RC config:
+
+```text
+MIN = 1000 us
+CENTER = 1500 us
+MAX = 2000 us
+DEADBAND = 50 us
+FAILSAFE = 100 ms
+```
+
+Преобразование:
+
+```text
+GP0 -> vx
+GP1 -> yaw
+vy = 0
+```
+
+Начальные пределы:
+
+```text
+vx max = 80 mm/s
+yaw max = 0.45 rad/s
+```
+
+Все параметры вынести в config.
+
+При отсутствии корректного RC pulse >100 ms команда становится нулевой.
+
+Сделать интерфейс `CommandSource`, чтобы позже можно было реализовать `UartCommandSource`.
+
+## 12. Command filtering
+
+Не подавать RC непосредственно в gait.
+
+Использовать slew limiting:
+
+```text
+vx acceleration <= 200 mm/s²
+yaw acceleration <= 1.5 rad/s²
+```
+
+Предусмотреть `vy`.
+
+## 13. Continuous Cartesian tripod gait
+
+Tripod A:
+
+```text
+FR + ML + RR
+```
+
+Tripod B:
+
+```text
+FL + MR + RL
+```
+
+Phase offset: `0.5`.
+
+Использовать одну global phase `0...1`.
+
+Не создавать старую state machine:
+
+```text
+PRELIFT
+LIFT
+TRANSFER
+LOWER
+```
+
+Можно иметь только простые режимы уровня locomotion:
+
+```text
+IDLE
+RUNNING
+STOPPING
+FAULT
+```
+
+и определять stance/swing ноги из continuous phase.
+
+Начальные параметры:
+
+```text
+stance duty = 0.65
+cycle frequency = 0.6 ... 1.5 Hz
+swing height = 30 mm
+ground search range = 15 mm
+```
+
+Частоту gait плавно увеличивать вместе с модулем команды движения.
+
+## 14. Stance
+
+Во время stance стопа должна оставаться неподвижной относительно земли.
+
+Для каждой ноги:
+
+```text
+vFoot = -vBody - omega × r
+```
+
+В 2D:
+
+```cpp
+footVx = -vx + yawRate * footY;
+footVy = -vy - yawRate * footX;
+```
+
+Во время stance интегрировать:
+
+```cpp
+footTarget.xy += footVelocity * dt;
+```
+
+Не использовать differential steering вида:
+
+```text
+left = forward + turn
+right = forward - turn
+```
+
+Pure yaw должен автоматически создавать индивидуальную тангенциальную траекторию каждой ноги.
+
+## 15. Swing
+
+При переходе ноги в swing:
+
+* `swingStart = current FootTarget`;
+* вычислить predicted landing position относительно neutral с учётом текущей filtered body velocity;
+* сохранить `swingEnd`.
+
+XY и Z интерполировать отдельно.
+
+Использовать `smootherstep`:
+
+```cpp
+s(t) = 6t^5 - 15t^4 + 10t^3;
+```
+
+XY:
+
+* первые ~12% swing почти не двигать XY;
+* закончить XY перенос примерно к 82% swing;
+* последние ~18% оставить почти вертикальному touchdown search.
+
+Z:
+
+```text
+0.00 -> 0.35 : быстрый плавный подъём до +30 mm
+0.35 -> 0.82 : плавное снижение до expected ground Z
+0.82 -> 1.00 : controlled search вниз до groundZ - 15 mm
+```
+
+На всех границах не должно быть скачка position.
+
+## 16. Концевики
+
+Inputs:
+
+```text
+HIGH = contact
+LOW = no contact
+```
+
+Внешний pull-up уже есть, поэтому GPIO не должен включать внутренний pull-down.
+
+Debounce:
+
+```text
+12 ms stable state
+```
+
+Хранить для каждой ноги:
+
+```cpp
+rawContact
+debouncedContact
+localGroundZ
+contactState
+```
+
+Contact корректирует только Cartesian FootTarget.
+
+Никогда не делать:
+
+```cpp
+Femur += ...
+Tibia += ...
+```
+
+## 17. Touchdown logic
+
+Во время swing:
+
+Если contact становится HIGH:
+
+1. debounce;
+2. считать текущую XYZ фактической точкой touchdown;
+3. сохранить `localGroundZ = currentTarget.z`;
+4. прекратить дальнейшее движение этой ноги вниз;
+5. считать её support leg.
+
+Early touchdown работает точно так же — не продолжать давить вниз.
+
+Если contact не появился до:
+
+```text
+expectedGroundZ - 15 mm
+```
+
+зафиксировать:
+
+```cpp
+FAULT_NO_GROUND
+```
+
+После этого:
+
+* больше не двигать эту ногу вниз;
+* filtered body command -> 0;
+* остановить новые swing transitions;
+* удерживать последний безопасный target;
+* fault оставить latched.
+
+## 18. Проверка stuck contact / оборванного провода
+
+Так как NC switch при обрыве также даст HIGH:
+
+если нога начала swing, поднялась минимум на `8 mm`, но contact продолжает стабильно оставаться HIGH — считать это ошибкой:
+
+```cpp
+FAULT_CONTACT_STUCK
+```
+
+и перейти в безопасный FAULT.
+
+## 19. Safe workspace
+
+Не clamp'ить Coxa/Femur/Tibia по отдельности.
+
+Перед применением FootTarget:
+
+```text
+BODY target
+-> BODY/LEG transform
+-> IK
+-> limits
+-> margin
+-> singularity
+```
+
+Если requested velocity/stride слишком большая, уменьшать весь body twist одним коэффициентом `0...1`.
+
+Реализовать поиск общего scale через несколько итераций binary search.
+
+Scale применяется к:
+
+```text
+vx
+vy
+yaw
+```
+
+а не отдельно к каждой ноге.
+
+Последняя защита: если конкретный generated FootTarget всё равно invalid, оставить предыдущий valid target.
+
+## 20. Support polygon
+
+Использовать только ноги с `debouncedContact == HIGH`.
+
+Реализовать:
+
+* convex hull XY контактных стоп;
+* проверку точки `(0,0)` BODY frame;
+* minimum support margin примерно `5 mm`.
+
+Перед началом swing Tripod A проверить, что Tripod B реально образует допустимую опору.
+
+Перед swing Tripod B проверить Tripod A.
+
+Если support недостаточен — новую swing phase не начинать.
+
+## 21. Start/stop
+
+`IDLE`:
+
+* neutral stand;
+* phase не движется.
+
+При появлении команды:
+
+* плавно начать gait.
+
+При возврате команды в deadband:
+
+* filtered velocity плавно уменьшается;
+* gait не должен мгновенно замереть с ногой в воздухе;
+* закончить текущий swing;
+* вернуть targets к neutral;
+* перейти в IDLE только в устойчивом положении.
+
+## 22. Main loop
+
+Основной порядок:
+
+```text
+read RC
+update command failsafe
+filter body command
+
+update contact debounce
+
+update locomotion/gait phase
+generate 6 Cartesian targets
+
+apply contact adaptation
+apply workspace/safety checks
+
+BODY -> LEG
+IK for 6 legs
+
+logical angles
+-> ServoConfig
+-> pulse_us
+
+submit frame to ServoController
+```
+
+Control loop должен использовать реальный `dt`.
+
+## 23. Diagnostics
+
+Через USB stdio выводить примерно 5-10 раз/сек:
+
+```text
+mode
+vx vy yaw
+phase
+RC pulses
+contact mask
+workspace scale
+fault
+IK error counter
+```
+
+Не спамить выводом на каждом control tick.
+
+Добавить текстовые названия fault codes.
+
+## 24. Tests
+
+Обязательно сделать host-side тесты для математики, не требующие RP2040.
+
+Минимум:
+
+### FK/IK
+
+Для большого набора допустимых joint angles:
+
+```text
+P = FK(q)
+q2 = IK(P)
+FK(q2) ≈ P
+```
+
+Также:
+
+```text
+IK(FK(q)) ≈ q
+```
+
+с учётом выбранной branch continuity.
+
+### Neutral pose
+
+Все 6 neutral targets должны:
+
+* иметь finite XYZ;
+* проходить IK;
+* находиться внутри workspace.
+
+### Invalid targets
+
+Проверить:
+
+* слишком далёкую точку;
+* слишком близкую точку;
+* singularity;
+* NaN protection.
+
+### Gait
+
+Проверить:
+
+* непрерывность FootTarget;
+* tripod phase offset 0.5;
+* отсутствие скачков при начале/остановке;
+* pure yaw создаёт разные тангенциальные velocity для разных ног.
+
+### Contact
+
+Проверить:
+
+* debounce;
+* normal touchdown;
+* early touchdown;
+* no ground;
+* stuck contact.
+
+### Servo mapping
+
+Проверить:
+
+```text
+logical 0 -> center_us
+direction ±1 работает корректно
+pulse limits соблюдаются
+```
+
+## 25. Код
+
+Требования к качеству:
+
+* enum для LegId и JointId;
+* никаких magic GPIO по проекту;
+* единицы явно отражать в именах: `_mm`, `_deg`, `_rad`, `_us`;
+* angles внутри math/kinematics хранить в radians;
+* конфигурационные углы можно задавать в degrees и конвертировать;
+* использовать `constexpr`;
+* никаких глобальных изменяемых объектов без необходимости;
+* никаких `new/delete`;
+* никаких исключений;
+* код должен нормально собираться с warnings.
+
+## 26. Не реализовывать
+
+Не добавлять:
+
+* neural networks;
+* genetic algorithms;
+* reinforcement learning;
+* MPC;
+* ROS;
+* numerical IK;
+* full dynamics;
+* IMU;
+* Raspberry Pi protocol.
+
+Но архитектура должна позволить позже добавить IMU correction перед IK и `UartCommandSource`.
+
+## 27. README
+
+Кратко описать:
+
+* build/flash;
+* GPIO;
+* servo calibration table;
+* RC диапазоны;
+* основные параметры gait;
+* fault codes;
+* как запустить host tests.
+
+## 28. Что сделать сейчас
+
+Не ограничивайся планом или описанием.
+
+1. Удали старую реализацию `RP2040RobotController`.
+2. Создай новый проект.
+3. Реализуй весь код выше.
+4. Добавь PIO program.
+5. Добавь CMake.
+6. Добавь tests.
+7. Собери проект.
+8. Исправь compile errors/warnings.
+9. Запусти доступные host tests.
+10. В конце дай короткий отчёт:
+
+* какие файлы созданы;
+* что реализовано;
+* результат build/tests;
+* какие параметры пользователь должен физически откалибровать на конкретном роботе.
+
+Не менять описанную архитектуру без необходимости. Если возникает небольшая неоднозначность реализации — выбирай наиболее простой deterministic вариант, совместимый с требованиями выше, и продолжай работу без запроса подтверждения.

@@ -1,55 +1,122 @@
 # RP2040RobotController
 
-The firmware controls all 18 servos of the hexapod directly on RP2040. Its
-only locomotion path is:
+Real-time C++17 firmware for a six-legged robot on Waveshare RP2040-Plus using Raspberry Pi Pico SDK, CMake, RC PWM input, contact sensors, analytical kinematics, continuous Cartesian tripod gait, and PIO-owned servo pins.
 
-```text
-RC PWM (GP0 forward/back, GP1 steering)
-  -> DriveController -> BodyVelocityCommand
-  -> continuous Cartesian tripod gait -> IK
-  -> servo calibration -> PIO/DMA at 50 Hz
+## Build and Flash
+
+Firmware build with the Raspberry Pi Pico SDK extension or CMake presets:
+
+```powershell
+cmake --preset pico-release
+cmake --build --preset pico-release --target RP2040RobotController
 ```
 
-`+X` is forward, `+Y` left, and `+Z` up. Geometry is defined once in
-`include/robot/robot_geometry.hpp`; its leg order is `FR, MR, RR, RL, ML, FL`.
-The curved Tibia is currently represented by a 125.24 mm effective straight
-link from Tibia axis to foot contact.
+The default board is `pico`, which is appropriate for Waveshare RP2040-Plus because this firmware only depends on the standard RP2040 peripherals used by Pico SDK.
 
-The two tripods are `FR/ML/RR` and `FL/MR/RL`, separated by phase 0.5. Stance
-targets move opposite to body velocity, including the per-leg yaw term
-`-omega x r`. Swing targets follow one continuous raised trajectory.
+Manual firmware build:
 
-The neutral Cartesian targets are calculated with FK from the current
-`STAND_*_DEG` values in `config/robot_params.txt`. User-tuned RC and stand
-values are therefore retained.
-
-## Cartesian gait parameters
-
-```text
-GAIT_CYCLE_MS
-GAIT_DUTY_FACTOR
-GAIT_STEP_HEIGHT_MM
-GAIT_STRIDE_MM
-MAX_FORWARD_SPEED_MM_S
-MAX_YAW_RATE_DEG_S
+```powershell
+$env:PICO_SDK_PATH="C:\path\to\pico-sdk"
+cmake -S . -B build-pico -G "Ninja"
+cmake --build build-pico
 ```
 
-The serial dashboard reports `ENGINE : CARTESIAN`, RC/arming state, velocity,
-phase, active swing legs, and IK status. If an IK target or logical joint limit
-is invalid, the controller holds the last valid pose rather than producing a
-servo command from invalid data.
+Flash by copying `build/RP2040RobotController.uf2` to the RP2040 BOOTSEL drive, or use the Pico extension's Run Project workflow.
 
-## Build and first test
+## GPIO
 
-Use VS Code task **Clean Rebuild Project**, then verify the generated UF2
-timestamp before flashing. Do not flash automatically from the build task.
+`GP0` is RC forward/back PWM. `GP1` is RC yaw PWM. Servo outputs are the contiguous PIO bus `GP2..GP19`.
 
-1. Lift the robot above the floor and prepare a servo-power disconnect.
-2. Flash the freshly built UF2, power servos, and let startup reach `STAND`.
-3. Apply a very small forward command and inspect all six legs.
-4. Test steering separately; each foot must follow its own XY arc.
-5. Release sticks and wait for `GAIT : IDLE` with all feet neutral/grounded.
-6. Only after the suspended test is correct, place the robot on the floor.
+Servo and contact mapping:
 
-PIO programs, DMA scheduling, GPIO assignment, servo calibration, and the
-20 ms servo frame are intentionally independent of locomotion and unchanged.
+```text
+FL: GP2 Coxa,  GP3 Femur,  GP4 Tibia,  GP28 Contact
+ML: GP5 Coxa,  GP6 Femur,  GP7 Tibia,  GP27 Contact
+RL: GP8 Coxa,  GP9 Femur,  GP10 Tibia, GP26 Contact
+RR: GP11 Coxa, GP12 Femur, GP13 Tibia, GP22 Contact
+MR: GP14 Coxa, GP15 Femur, GP16 Tibia, GP21 Contact
+FR: GP17 Coxa, GP18 Femur, GP19 Tibia, GP20 Contact
+```
+
+Contact inputs are `HIGH = contact`. External pull-up hardware is assumed; firmware does not enable an internal pull-down.
+
+## Calibration
+
+Servo calibration is centralized in `src/config/servo_config.cpp`.
+
+Initial values:
+
+```text
+center_us = 1500
+min_pulse_us = 1000
+max_pulse_us = 2000
+us_per_degree = 1000 / 150
+FL/ML/RL direction = +1
+FR/MR/RR direction = -1
+```
+
+Calibrate every servo's `center_us`, `direction`, `us_per_degree`, `min_pulse_us`, and `max_pulse_us` on the physical robot before loading the legs.
+
+## RC
+
+Default PWM ranges are in `src/config/robot_config.h`:
+
+```text
+MIN 1000 us
+CENTER 1500 us
+MAX 2000 us
+DEADBAND 50 us
+FAILSAFE 100 ms
+vx max 80 mm/s
+yaw max 0.45 rad/s
+```
+
+`CommandSource` keeps locomotion independent from RC input so UART0 command control can be added later.
+
+## Gait
+
+Tripod A is `FR + ML + RR`; Tripod B is `FL + MR + RL`, with phase offset `0.5`.
+
+Key parameters:
+
+```text
+control loop 200 Hz
+servo frame 50 Hz / 20000 us
+stance duty 0.65
+cycle frequency 0.6..1.5 Hz
+swing height 30 mm
+ground search 15 mm
+contact debounce 12 ms
+support margin 5 mm
+```
+
+The stance model integrates Cartesian foot velocity from body twist:
+
+```text
+footVx = -vx + yawRate * footY
+footVy = -vy - yawRate * footX
+```
+
+## Faults
+
+```text
+NONE
+FAULT_NO_GROUND
+FAULT_CONTACT_STUCK
+FAULT_IK_INVALID
+FAULT_SUPPORT_LOST
+```
+
+On invalid IK or unsafe workspace, the controller keeps the last valid servo target. On latched contact faults, the gait enters `FAULT` and stops starting new swing phases.
+
+## Tests
+
+Host-side tests cover FK/IK round trips, neutral pose, invalid targets, gait continuity and tripod offset, contact debounce/faults, support polygon, and servo mapping:
+
+```powershell
+cmake -S tests -B build-host-tests
+cmake --build build-host-tests
+ctest --test-dir build-host-tests --output-on-failure
+```
+
+The host tests are intentionally separate from the Pico firmware CMake project so native test tooling cannot interfere with firmware configure/build in VS Code.

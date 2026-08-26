@@ -1,0 +1,13 @@
+.program servo_output
+; TX FIFO stream: gpio_mask, delay_ticks, gpio_mask, delay_ticks, ...
+; The C++ driver builds an event stream for GP2..GP19 as one 18-bit bus.
+; PIO owns pin transitions; DMA can keep the FIFO fed without control-loop jitter.
+
+.wrap_target
+    pull block
+    out pins, 18
+    pull block
+    mov x, osr
+delay_loop:
+    jmp x-- delay_loop
+.wrap

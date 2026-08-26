@@ -1,27 +1,40 @@
 {
-    "version": 6,
-    "configurePresets": [
-        {
-            "name": "pico-debug",
-            "displayName": "Pico Debug",
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "PICO_BOARD": "pico",
-                "PICO_SDK_PATH": "$env{USERPROFILE}/.pico-sdk/sdk/2.3.0"
-            },
-            "environment": {
-                "PICO_SDK_PATH": "$env{USERPROFILE}/.pico-sdk/sdk/2.3.0",
-                "PICO_TOOLCHAIN_PATH": "$env{USERPROFILE}/.pico-sdk/toolchain/15_2_Rel1",
-                "PATH": "$env{USERPROFILE}/.pico-sdk/toolchain/15_2_Rel1/bin;$env{USERPROFILE}/.pico-sdk/picotool/2.3.0/picotool;$env{USERPROFILE}/.pico-sdk/ninja/v1.13.2;$penv{PATH}"
-            }
-        }
-    ],
-    "buildPresets": [
-        {
-            "name": "pico-debug",
-            "configurePreset": "pico-debug"
-        }
-    ]
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "pico-release",
+      "displayName": "Pico Release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "PICO_BOARD": "pico",
+        "PICO_SDK_PATH": "$env{USERPROFILE}/.pico-sdk/sdk/2.3.0",
+        "pioasm_DIR": "$env{USERPROFILE}/.pico-sdk/tools/2.3.0/pioasm",
+        "picotool_DIR": "$env{USERPROFILE}/.pico-sdk/picotool/2.3.0/picotool"
+      },
+      "environment": {
+        "PATH": "$env{USERPROFILE}/.pico-sdk/toolchain/15_2_Rel1/bin;$env{USERPROFILE}/.pico-sdk/ninja/v1.13.2;$penv{PATH}"
+      }
+    },
+    {
+      "name": "pico-debug",
+      "displayName": "Pico Debug",
+      "inherits": "pico-release",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "pico-release",
+      "configurePreset": "pico-release"
+    },
+    {
+      "name": "pico-debug",
+      "configurePreset": "pico-debug"
+    }
+  ]
 }

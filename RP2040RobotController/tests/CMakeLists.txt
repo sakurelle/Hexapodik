@@ -1,54 +1,43 @@
-cmake_minimum_required(VERSION 3.13)
-project(RP2040RobotControllerTests CXX)
+cmake_minimum_required(VERSION 3.16)
+
+project(hexapod_host_tests CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
-
-set(ROBOT_PARAMS_TXT ${CMAKE_CURRENT_LIST_DIR}/../config/robot_params.txt)
-set(ROBOT_PARAMS_HPP ${CMAKE_CURRENT_BINARY_DIR}/generated/robot_params.hpp)
-
-add_custom_command(
-    OUTPUT ${ROBOT_PARAMS_HPP}
-    COMMAND ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_LIST_DIR}/../tools/generate_robot_params.py
-        --input ${ROBOT_PARAMS_TXT}
-        --output ${ROBOT_PARAMS_HPP}
-    DEPENDS
-        ${ROBOT_PARAMS_TXT}
-        ${CMAKE_CURRENT_LIST_DIR}/../tools/generate_robot_params.py
-    COMMENT "Generating test robot_params.hpp"
-    VERBATIM
-)
-
-add_custom_target(generate_robot_params_tests DEPENDS ${ROBOT_PARAMS_HPP})
-
-add_executable(rp2040_robot_controller_tests
-    test_main.cpp
-    ../src/control/drive_controller.cpp
-    ../src/protocol/uart_protocol.cpp
-    ../src/robot/gait_generator.cpp
-    ../src/robot/cartesian_validation.cpp
+add_library(hexapod_core_host
+    ../src/config/robot_config.cpp
+    ../src/config/servo_config.cpp
     ../src/robot/kinematics.cpp
-    ../src/robot/motion_controller.cpp
-    ../src/app/startup_controller.cpp
-    ../src/servo/servo_calibration.cpp
-    ../src/servo/servo_frame_scheduler.cpp
-    ../src/storage/config_storage.cpp
-    ../src/storage/crc32.cpp
+    ../src/robot/robot_geometry.cpp
+    ../src/robot/workspace.cpp
+    ../src/locomotion/gait_generator.cpp
+    ../src/locomotion/contact_adaptation.cpp
+    ../src/locomotion/support_polygon.cpp
+    ../src/locomotion/locomotion_controller.cpp
+    ../src/drivers/servo_controller.cpp
+    ../src/drivers/rc_input.cpp
+    ../src/drivers/contact_sensors.cpp
 )
 
-add_dependencies(rp2040_robot_controller_tests generate_robot_params_tests)
-
-target_include_directories(rp2040_robot_controller_tests PRIVATE
-    ../include
-    ${CMAKE_CURRENT_BINARY_DIR}/generated
+target_include_directories(hexapod_core_host PUBLIC
+    ${CMAKE_CURRENT_LIST_DIR}/../src
 )
+
+add_executable(hexapod_host_tests
+    test_main.cpp
+)
+
+target_link_libraries(hexapod_host_tests PRIVATE hexapod_core_host)
+
+if(MSVC)
+    target_compile_options(hexapod_core_host PRIVATE /W4)
+    target_compile_options(hexapod_host_tests PRIVATE /W4)
+else()
+    target_compile_options(hexapod_core_host PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(hexapod_host_tests PRIVATE -Wall -Wextra -Wpedantic)
+endif()
 
 enable_testing()
-add_test(NAME rp2040_robot_controller_tests COMMAND rp2040_robot_controller_tests)
-add_test(
-    NAME robot_params_parser
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/../tools/generate_robot_params.py --self-test
-)
+add_test(NAME hexapod_host_tests COMMAND hexapod_host_tests)

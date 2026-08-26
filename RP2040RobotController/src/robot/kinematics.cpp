@@ -1,102 +1,118 @@
-#include "robot/kinematics.hpp"
+#include "robot/kinematics.h"
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 
-namespace robot {
+namespace hexapod {
 namespace {
 
-constexpr float PI = 3.14159265358979323846f;
-constexpr float DEG_TO_RAD = PI / 180.0f;
-constexpr float RAD_TO_DEG = 180.0f / PI;
-
-float clamp_unit(float value) {
-    return value < -1.0f ? -1.0f : (value > 1.0f ? 1.0f : value);
+float clamp(float value, float lo, float hi) {
+    return std::max(lo, std::min(hi, value));
 }
 
-Vector3 to_leg_frame(const LegGeometry &leg, const FootTarget &target) {
-    const float dx = target.x_mm - leg.body_mount.x_mm;
-    const float dy = target.y_mm - leg.body_mount.y_mm;
-    const float c = std::cos(leg.mount_yaw_rad);
-    const float s = std::sin(leg.mount_yaw_rad);
-    return Vector3{c * dx + s * dy, -s * dx + c * dy,
-                   target.z_mm - leg.body_mount.z_mm};
+float sqr(float value) {
+    return value * value;
 }
 
-FootTarget to_body_frame(const LegGeometry &leg, const Vector3 &local) {
-    const float c = std::cos(leg.mount_yaw_rad);
-    const float s = std::sin(leg.mount_yaw_rad);
-    return FootTarget{leg.body_mount.x_mm + c * local.x_mm - s * local.y_mm,
-                      leg.body_mount.y_mm + s * local.x_mm + c * local.y_mm,
-                      leg.body_mount.z_mm + local.z_mm};
+bool finite(JointAngles a) {
+    return std::isfinite(a.coxa_rad) && std::isfinite(a.femur_rad) && std::isfinite(a.tibia_rad);
 }
 
-} // namespace
-
-Vector3 body_to_leg_frame(const RobotGeometry &geometry, servo::Leg leg,
-                          const FootTarget &target) {
-    return to_leg_frame(geometry.legs[servo::leg_index(leg)], target);
+float distance2(JointAngles a, JointAngles b) {
+    return sqr(a.coxa_rad - b.coxa_rad) + sqr(a.femur_rad - b.femur_rad) + sqr(a.tibia_rad - b.tibia_rad);
 }
 
-FootTarget leg_to_body_frame(const RobotGeometry &geometry, servo::Leg leg,
-                             const Vector3 &local) {
-    return to_body_frame(geometry.legs[servo::leg_index(leg)], local);
-}
+}  // namespace
 
-IkResult solve_leg_ik(const RobotGeometry &geometry, servo::Leg leg,
-                      const FootTarget &target) {
-    IkResult result{};
-    if (!geometry_is_valid(geometry)) {
-        return result;
-    }
-
-    const Vector3 local = body_to_leg_frame(geometry, leg, target);
-    const float coxa_rad = std::atan2(local.y_mm, local.x_mm);
-    const float radial = std::sqrt(local.x_mm * local.x_mm + local.y_mm * local.y_mm) -
-                         geometry.coxa_length_mm;
-    const float z = local.z_mm;
-    const float distance_sq = radial * radial + z * z;
-    const float distance = std::sqrt(distance_sq);
-    const float femur = geometry.femur_length_mm;
-    const float tibia = geometry.tibia_length_mm;
-    if (distance <= 0.0f || distance > femur + tibia ||
-        distance < std::fabs(femur - tibia)) {
-        return result;
-    }
-
-    const float cosine_knee = clamp_unit((distance_sq - femur * femur - tibia * tibia) /
-                                         (2.0f * femur * tibia));
-    // The measured logical Tibia convention is opposite the physical relative
-    // angle.  The negative elbow branch matches tibia_zero_offset_deg.
-    const float tibia_relative_rad = -std::acos(cosine_knee);
-    const float femur_rad = std::atan2(z, radial) -
-                            std::atan2(tibia * std::sin(tibia_relative_rad),
-                                       femur + tibia * std::cos(tibia_relative_rad));
-    result.reachable = true;
-    result.pose = LegPose{
-        coxa_rad * RAD_TO_DEG,
-        femur_rad * RAD_TO_DEG - geometry.femur_zero_offset_deg,
-        geometry.tibia_zero_offset_deg - tibia_relative_rad * RAD_TO_DEG,
+JointAngles logicalToPhysical(JointAngles logical) {
+    return {
+        logical.coxa_rad + kCoxaModelZeroRad,
+        logical.femur_rad + kFemurModelZeroRad,
+        logical.tibia_rad + kTibiaModelZeroRad,
     };
-    return result;
 }
 
-FootTarget forward_kinematics(const RobotGeometry &geometry, servo::Leg leg,
-                              const LegPose &pose) {
-    if (!geometry_is_valid(geometry)) {
-        return FootTarget{};
+JointAngles physicalToLogical(JointAngles physical) {
+    return {
+        physical.coxa_rad - kCoxaModelZeroRad,
+        physical.femur_rad - kFemurModelZeroRad,
+        physical.tibia_rad - kTibiaModelZeroRad,
+    };
+}
+
+Vec3 forwardKinematics(JointAngles logical_angles) {
+    const JointAngles q = logicalToPhysical(logical_angles);
+    const float radial_mm = kLcoxaMm + kLfemurMm * std::cos(q.femur_rad) +
+                            kLtibiaMm * std::cos(q.femur_rad + q.tibia_rad);
+    const float z_mm = kLfemurMm * std::sin(q.femur_rad) +
+                       kLtibiaMm * std::sin(q.femur_rad + q.tibia_rad);
+    return {
+        radial_mm * std::cos(q.coxa_rad),
+        radial_mm * std::sin(q.coxa_rad),
+        z_mm,
+    };
+}
+
+bool jointsWithinLimits(JointAngles q, float margin_rad) {
+    if (!finite(q)) {
+        return false;
     }
-    const float coxa = pose.coxa_deg * DEG_TO_RAD;
-    const float femur = (geometry.femur_zero_offset_deg + pose.femur_deg) * DEG_TO_RAD;
-    const float tibia_relative =
-        (geometry.tibia_zero_offset_deg - pose.tibia_deg) * DEG_TO_RAD;
-    const float tibia_absolute = femur + tibia_relative;
-    const float radial = geometry.coxa_length_mm +
-                         geometry.femur_length_mm * std::cos(femur) +
-                         geometry.tibia_length_mm * std::cos(tibia_absolute);
-    const Vector3 local{radial * std::cos(coxa), radial * std::sin(coxa),
-                        geometry.femur_length_mm * std::sin(femur) +
-                        geometry.tibia_length_mm * std::sin(tibia_absolute)};
-    return leg_to_body_frame(geometry, leg, local);
+    return q.coxa_rad >= kCoxaLimitMinRad + margin_rad && q.coxa_rad <= kCoxaLimitMaxRad - margin_rad &&
+           q.femur_rad >= kFemurLimitMinRad + margin_rad && q.femur_rad <= kFemurLimitMaxRad - margin_rad &&
+           q.tibia_rad >= kTibiaLimitMinRad + margin_rad && q.tibia_rad <= kTibiaLimitMaxRad - margin_rad;
 }
 
-} // namespace robot
+bool isSingular(JointAngles logical_angles) {
+    const JointAngles q = logicalToPhysical(logical_angles);
+    return !finite(q) || std::fabs(std::sin(q.tibia_rad)) < kSingularitySinMin;
+}
+
+IkResult inverseKinematics(Vec3 p, JointAngles previous_logical) {
+    if (!isFinite(p)) {
+        return {};
+    }
+
+    const float q_coxa_physical = std::atan2(p.y, p.x);
+    const float radial_mm = std::sqrt(p.x * p.x + p.y * p.y);
+    const float r_mm = radial_mm - kLcoxaMm;
+    const float d2 = r_mm * r_mm + p.z * p.z;
+    const float d = std::sqrt(d2);
+    constexpr float kEpsilon = 1.0e-4f;
+
+    if (!std::isfinite(d) || d > kLfemurMm + kLtibiaMm + kEpsilon ||
+        d < std::fabs(kLfemurMm - kLtibiaMm) - kEpsilon) {
+        return {};
+    }
+
+    const float cos_tibia = clamp((d2 - kLfemurMm * kLfemurMm - kLtibiaMm * kLtibiaMm) /
+                                      (2.0f * kLfemurMm * kLtibiaMm),
+                                  -1.0f, 1.0f);
+    const float tibia_abs = std::acos(cos_tibia);
+    const std::array<float, 2> tibia_branches = {tibia_abs, -tibia_abs};
+
+    IkResult best;
+    float best_distance = 1.0e30f;
+    for (float q_tibia_physical : tibia_branches) {
+        const float q_femur_physical =
+            std::atan2(p.z, r_mm) -
+            std::atan2(kLtibiaMm * std::sin(q_tibia_physical),
+                       kLfemurMm + kLtibiaMm * std::cos(q_tibia_physical));
+        const JointAngles candidate =
+            physicalToLogical({q_coxa_physical, q_femur_physical, q_tibia_physical});
+
+        if (!jointsWithinLimits(candidate) || isSingular(candidate)) {
+            continue;
+        }
+        const float score = distance2(candidate, previous_logical);
+        if (!best.valid || score < best_distance) {
+            best.valid = true;
+            best.angles = candidate;
+            best_distance = score;
+        }
+    }
+
+    return best;
+}
+
+}  // namespace hexapod
