@@ -10,13 +10,15 @@ class ContactSensors {
 public:
     void init();
     void update(float dt_s);
-    const ContactDebouncer& debouncer() const { return debouncer_; }
-    std::array<bool, kLegCount> contacts() const { return debouncer_.contacts(); }
+    const ContactManager& manager() const { return manager_; }
+    const std::array<ContactState, kLegCount>& states() const { return manager_.states(); }
+    std::array<bool, kLegCount> contacts() const { return manager_.stableContacts(); }
+    std::array<bool, kLegCount> rawContacts() const { return manager_.rawContacts(); }
 
 private:
     std::array<bool, kLegCount> readRaw() const;
 
-    ContactDebouncer debouncer_{};
+    ContactManager manager_{};
     bool initialized_ = false;
 };
 

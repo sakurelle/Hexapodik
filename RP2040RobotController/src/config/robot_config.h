@@ -15,6 +15,9 @@ enum class LegId : std::uint8_t { FL = 0, ML, RL, RR, MR, FR, Count };
 enum class JointId : std::uint8_t { Coxa = 0, Femur, Tibia, Count };
 enum class FaultCode : std::uint8_t { None = 0, NoGround, ContactStuck, IkInvalid, SupportLost };
 enum class LocomotionMode : std::uint8_t { Idle = 0, Running, Stopping, Fault };
+enum class ContactMode : std::uint8_t { Disabled = 0, TouchdownOnly, FullTerrain };
+enum class StopReason : std::uint8_t { None = 0, SensorStuckHigh, NoGround, EarlyCollision, SupportLost };
+enum class SensorHealth : std::uint8_t { Ok = 0, SuspectStuckHigh, SuspectStuckLow, Unhealthy };
 
 constexpr std::size_t kLegCount = static_cast<std::size_t>(LegId::Count);
 constexpr std::size_t kJointsPerLeg = static_cast<std::size_t>(JointId::Count);
@@ -57,6 +60,22 @@ constexpr std::array<std::uint8_t, kLegCount> kContactGpios = {
 constexpr std::uint8_t kFirstServoGpio = 2;
 constexpr std::uint8_t kServoGpioSpan = 18;
 
+constexpr bool servoGpiosAreContiguous() {
+    if (kServoCount != kServoGpioSpan) {
+        return false;
+    }
+    for (std::size_t i = 0; i < kServoCount; ++i) {
+        if (kServoGpios[i] != kFirstServoGpio + i) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static_assert(kServoCount == 18, "Expected exactly 18 servo channels");
+static_assert(kServoGpioSpan == 18, "Expected GP2..GP19 servo GPIO span");
+static_assert(servoGpiosAreContiguous(), "Servo GPIOs must be contiguous GP2..GP19");
+
 constexpr std::uint16_t kRcMinUs = 1000;
 constexpr std::uint16_t kRcCenterUs = 1500;
 constexpr std::uint16_t kRcMaxUs = 2000;
@@ -77,9 +96,24 @@ constexpr float kGroundSearchMm = 15.0f;
 constexpr float kContactDebounceMs = 12.0f;
 constexpr float kStuckContactLiftMm = 8.0f;
 constexpr float kSupportMarginMm = 5.0f;
+constexpr std::uint32_t kContactPressDebounceMs = 10;
+constexpr std::uint32_t kContactReleaseDebounceMs = 15;
+constexpr float kContactReleaseCheckHeightMm = 10.0f;
+constexpr std::uint32_t kContactReleaseTimeoutMs = 150;
+constexpr float kGroundSearchSpeedMmS = 15.0f;
+constexpr ContactMode kContactMode = ContactMode::TouchdownOnly;
+
+constexpr bool kServoDriverTestMode = false;
+constexpr bool kServoSequentialTestMode = false;
+constexpr bool kContactDiagnosticMode = false;
+constexpr std::uint32_t kServoSequentialStepMs = 600;
 
 const char* legName(LegId leg);
 const char* faultName(FaultCode fault);
+const char* locomotionModeName(LocomotionMode mode);
+const char* contactModeName(ContactMode mode);
+const char* stopReasonName(StopReason reason);
+const char* sensorHealthName(SensorHealth health);
 
 constexpr std::size_t indexOf(LegId leg) { return static_cast<std::size_t>(leg); }
 constexpr std::size_t indexOf(JointId joint) { return static_cast<std::size_t>(joint); }

@@ -1,815 +1,524 @@
-Ты работаешь внутри проекта `RP2040RobotController`.
+Работай с текущей версией `RP2040RobotController`.
 
-Существующий код — старый прототип под другую плату. Он больше не нужен. Полностью удали старую реализацию и создай новый проект с нуля. Не пытайся сохранять совместимость со старой архитектурой.
+Текущую contact logic нужно переработать, а не продолжать латать.
 
-Цель: прошивка real-time контроллера шестиногого робота на Waveshare RP2040-Plus.
+На реальном роботе после команды он немного начинает движение и затем останавливается. Текущие host tests проходят, поэтому проблема в том, что тестовая модель контактов слишком идеальная для реальных NC механических микриков.
 
-## 1. Технологии
+Не менять PIO/DMA, servo mapping, IK/FK и RC.
 
-Использовать:
+## 1. Главная проблема
 
-* C++17;
-* Raspberry Pi Pico SDK;
-* CMake;
-* PIO + DMA для управления сервами;
-* без Arduino;
-* без динамического выделения памяти в основном цикле;
-* без blocking delays в locomotion loop.
+Сейчас `GaitGenerator` слишком сильно зависит от мгновенных debounced contact levels:
 
-Основной control loop: `200 Hz`.
+* contact используется для liftoff;
+* touchdown;
+* ContactStuck;
+* NoGround;
+* canStartSwing();
+* support polygon.
 
-Сервоприводы: `50 Hz`, период `20000 us`.
+Из-за одного ненажатого или дребезжащего микрика может остановиться весь gait.
 
-## 2. GPIO
+Переработать contact subsystem на event-based architecture.
 
-```text
-GP0 — RC Forward/Back
-GP1 — RC Left/Right
+## 2. ContactSensor должен выдавать события
 
-FL:
-GP2 Coxa
-GP3 Femur
-GP4 Tibia
-GP28 Contact
-
-ML:
-GP5 Coxa
-GP6 Femur
-GP7 Tibia
-GP27 Contact
-
-RL:
-GP8 Coxa
-GP9 Femur
-GP10 Tibia
-GP26 Contact
-
-RR:
-GP11 Coxa
-GP12 Femur
-GP13 Tibia
-GP22 Contact
-
-MR:
-GP14 Coxa
-GP15 Femur
-GP16 Tibia
-GP21 Contact
-
-FR:
-GP17 Coxa
-GP18 Femur
-GP19 Tibia
-GP20 Contact
-```
-
-GP2...GP19 специально образуют непрерывный диапазон из 18 GPIO для PIO.
-
-GP0/GP1 сейчас используются для RC PWM. Архитектура command source должна позволять позже заменить RC на UART0 с Raspberry Pi без изменения locomotion.
-
-## 3. Структура проекта
-
-Сделай примерно такую архитектуру:
-
-```text
-src/
-    main.cpp
-
-    config/
-        robot_config.h
-        servo_config.cpp/.h
-
-    math/
-        vec2.h
-        vec3.h
-
-    robot/
-        robot_geometry.cpp/.h
-        kinematics.cpp/.h
-        workspace.cpp/.h
-
-    locomotion/
-        body_command.h
-        gait_generator.cpp/.h
-        contact_adaptation.cpp/.h
-        support_polygon.cpp/.h
-        locomotion_controller.cpp/.h
-
-    drivers/
-        servo_controller.cpp/.h
-        rc_input.cpp/.h
-        contact_sensors.cpp/.h
-
-pio/
-    servo_output.pio
-
-tests/
-```
-
-Названия можно немного изменить, но ответственность модулей не смешивать.
-
-## 4. Геометрия
-
-BODY frame:
-
-```text
-+X forward
-+Y left
-+Z up
-```
-
-Размеры:
+Для каждой ноги хранить:
 
 ```cpp
-L_COXA  = 44.0f;
-L_FEMUR = 80.0f;
-L_TIBIA = 125.24f;
+struct ContactState {
+    bool raw;
+    bool stable;
+
+    bool pressed_event;   // LOW -> HIGH
+    bool released_event;  // HIGH -> LOW
+
+    uint32_t stable_ms;
+
+    bool healthy;
+    uint32_t stuck_count;
+};
 ```
 
-Mechanical model offsets:
+События должны появляться только на один control tick после подтверждённого изменения состояния.
+
+Напоминание по аппаратной логике:
+
+```text
+LOW  = стопа не касается пола
+HIGH = стопа касается пола
+```
+
+NC + внешний pull-up 4.7k.
+
+## 3. Сделать асимметричный debounce
+
+Для механического микрика:
 
 ```cpp
-FEMUR_MODEL_ZERO = +35.27 deg;
-TIBIA_MODEL_ZERO = -104.65 deg;
-COXA_MODEL_ZERO  = 0 deg;
+constexpr uint32_t kContactPressDebounceMs = 10;
+constexpr uint32_t kContactReleaseDebounceMs = 15;
 ```
 
-Использовать строго следующую конвенцию:
+То есть:
 
-```text
-physical_angle = logical_angle + model_zero_offset
-logical_angle  = physical_angle - model_zero_offset
-```
+* HIGH должен быть стабильным 10 ms -> PRESSED;
+* LOW должен быть стабильным 15 ms -> RELEASED.
 
-Mount позиции Coxa в BODY:
+Не использовать один `kContactDebounceMs` для обоих переходов.
 
-```text
-FR: +82.93, -62.79, yaw -45°
-MR:  +0.25, -80.25, yaw -90°
-RR: -82.95, -62.81, yaw -135°
+Control loop 200 Hz, поэтому считать время через реальный `dt`, не через количество вызовов.
 
-RL: -82.95, +62.81, yaw +135°
-ML:  +0.25, +80.25, yaw +90°
-FL: +82.93, +62.79, yaw +45°
-```
+## 4. Убрать contact state machine из GaitGenerator
 
-BODY -> LEG:
-
-```text
-p_leg = Rz(-mountYaw) * (p_body - mountPosition)
-```
-
-LEG -> BODY — обратное преобразование.
-
-## 5. Neutral stand
-
-Логическая стойка:
+Не хранить:
 
 ```cpp
-Coxa  = 0 deg;
-Femur = 0 deg;
-Tibia = 0 deg;
+WaitingForRelease
+Airborne
+Touchdown
 ```
 
-Neutral XYZ каждой ноги получить через FK этой стойки и затем преобразовать из LEG в BODY.
+как интерпретацию самого GPIO.
 
-Не хардкодить отдельно XYZ стойки.
-
-## 6. Forward Kinematics
-
-Для физических углов:
-
-```text
-radial =
-    Lcoxa
-    + Lfemur*cos(qFemur)
-    + Ltibia*cos(qFemur + qTibia)
-
-z =
-    Lfemur*sin(qFemur)
-    + Ltibia*sin(qFemur + qTibia)
-
-x = radial*cos(qCoxa)
-y = radial*sin(qCoxa)
-```
-
-FK принимает logical angles, внутри применяет model zero offsets.
-
-## 7. Analytical IK
-
-IK работает только с углами и координатами. Она ничего не должна знать про PWM/pulse_us.
-
-Для точки LEG `(x,y,z)`:
-
-```text
-qCoxa = atan2(y,x)
-
-R = sqrt(x²+y²) - Lcoxa
-D = sqrt(R²+z²)
-```
-
-Решить обычную planar 2-link IK для Femur/Tibia.
-
-Обязательно:
-
-* проверять reachability;
-* clamp аргументов `acos` в `[-1,1]`;
-* проверять `isfinite`;
-* учитывать model zero offsets;
-* рассматривать обе возможные ветви колена;
-* отбрасывать решения вне limits;
-* из допустимых выбирать ближайшее к предыдущему joint solution.
-
-Никаких numerical IK/Jacobian в основном loop.
-
-## 8. Joint safety
-
-Начальные logical limits вынести в config:
-
-```text
-Coxa:  -60 ... +60 deg
-Femur: -75 ... +75 deg
-Tibia: -75 ... +75 deg
-```
-
-Также иметь `5°` safety margin.
-
-Проверять singularity:
+Вместо этого gait должен иметь собственную механическую фазу ноги:
 
 ```cpp
-M = abs(sin(qTibiaPhysical));
+enum class LegPhase {
+    Stance,
+    Lift,
+    Transfer,
+    Descend,
+    GroundSearch
+};
 ```
 
-Считать положение небезопасным при:
+Это состояние траектории, а не состояние датчика.
+
+ContactManager только сообщает события.
+
+## 5. Новый lifecycle swing
+
+### STANCE
+
+Микрик здесь НЕ управляет gait phase напрямую.
+
+Потеря контакта на несколько миллисекунд не должна останавливать робота.
+
+### LIFT
+
+Стопа начинает подниматься.
+
+HIGH здесь нормально — нога ещё физически не успела оторваться.
+
+`pressed_event` полностью игнорировать.
+
+Когда появляется:
+
+```text
+released_event
+```
+
+записать:
 
 ```cpp
-M < 0.15
+released_this_swing = true;
 ```
 
-Все значения должны быть легко изменяемыми в `robot_config.h`.
+### TRANSFER
 
-## 9. ServoConfig
+Нога переносится по XY.
 
-Вся зависимость от реальной установки серв должна находиться только здесь.
+Обычный touchdown здесь не принимать.
 
-Для каждого из 18 приводов хранить:
+Если контакт возник после уже подтверждённого release слишком рано, считать это `EARLY_COLLISION`, но пока не делать global FAULT.
+
+Для первой реализации просто остановить дальнейшее движение этой ноги вниз/в сторону и запросить controlled stop робота.
+
+### DESCEND
+
+Только здесь разрешён нормальный touchdown.
+
+Условия touchdown:
+
+```text
+released_this_swing == true
+AND
+pressed_event == true
+```
+
+После touchdown:
+
+```text
+current target Z -> localGroundZ
+закончить swing этой ноги
+перевести её в STANCE
+```
+
+Никакого дополнительного движения вниз.
+
+Early touchdown в начале DESCEND должен работать аналогично:
+текущий Z становится новым ground level.
+
+## 6. Late touchdown / GroundSearch
+
+Если нога дошла до ожидаемого:
+
+```text
+expectedGroundZ
+```
+
+и контакта ещё нет:
+
+не выдавать сразу FAULT_NO_GROUND.
+
+Перейти:
+
+```text
+DESCEND -> GROUND_SEARCH
+```
+
+В `GROUND_SEARCH`:
+
+* XY полностью зафиксирован;
+* Z двигать вниз с постоянной небольшой скоростью:
 
 ```cpp
-gpio
-center_us
-direction        // +1 / -1
-us_per_degree
-min_pulse_us
-max_pulse_us
+kGroundSearchSpeedMmS = 15.0f;
 ```
 
-Преобразование:
+* предел:
 
 ```cpp
-pulse =
-    center_us
-    + direction * logical_angle_deg * us_per_degree;
+kGroundSearchMm = 15.0f;
 ```
 
-После этого проверить диапазон pulse.
-
-Начальные значения:
+Если появился `pressed_event`:
 
 ```text
-center_us = 1500
-min = 1000
-max = 2000
+-> STANCE
+localGroundZ = currentZ
 ```
 
-`us_per_degree` вычислить для диапазона ±75° между 1000 и 2000 us.
-
-Начальную зеркальность сделать:
+Если достигнут весь search range:
 
 ```text
-FL ML RL: +1
-FR MR RR: -1
+NO_GROUND
 ```
 
-для соответствующих Coxa/Femur/Tibia.
+Тогда остановить дальнейшее опускание ноги и запросить controlled gait stop.
 
-Вся таблица должна находиться в одном месте, чтобы позже можно было откалибровать каждую серву отдельно.
+## 7. SENSOR_STUCK_HIGH вместо мгновенного ContactStuck
 
-Не добавлять mirroring в IK или gait.
+NC провод при обрыве также выглядит как постоянный HIGH.
 
-## 10. PIO + DMA серв
-
-Не использовать программный PWM через interrupts.
-
-Реализовать PIO/DMA драйвер для всех GP2...GP19.
-
-Идея:
-
-* один PIO state machine управляет 18 GPIO как одним 18-bit mask;
-* в начале servo frame все необходимые линии HIGH;
-* падения линий происходят в соответствии с индивидуальными pulse width;
-* после последнего pulse все LOW до конца `20 ms`;
-* CPU формирует event buffer;
-* DMA передаёт его PIO;
-* использовать double buffering;
-* обновление нового набора pulse не должно ломать текущий frame.
-
-Требования:
-
-* 18 независимых pulse width;
-* frame точно около 20 ms;
-* отсутствие jitter от основного control loop;
-* все GPIO переключаются только PIO;
-* при invalid IK оставить предыдущий корректный servo target, а не отправлять мусор.
-
-## 11. RC input
-
-GP0 и GP1 принимать через GPIO edge IRQ с timestamp.
-
-Не делать busy polling.
-
-Default RC config:
+Поэтому текущая схема:
 
 ```text
-MIN = 1000 us
-CENTER = 1500 us
-MAX = 2000 us
-DEADBAND = 50 us
-FAILSAFE = 100 ms
+HIGH при подъёме
+-> FAULT_CONTACT_STUCK
+-> полностью заморозить робот
 ```
 
-Преобразование:
+не подходит.
 
-```text
-GP0 -> vx
-GP1 -> yaw
-vy = 0
-```
-
-Начальные пределы:
-
-```text
-vx max = 80 mm/s
-yaw max = 0.45 rad/s
-```
-
-Все параметры вынести в config.
-
-При отсутствии корректного RC pulse >100 ms команда становится нулевой.
-
-Сделать интерфейс `CommandSource`, чтобы позже можно было реализовать `UartCommandSource`.
-
-## 12. Command filtering
-
-Не подавать RC непосредственно в gait.
-
-Использовать slew limiting:
-
-```text
-vx acceleration <= 200 mm/s²
-yaw acceleration <= 1.5 rad/s²
-```
-
-Предусмотреть `vy`.
-
-## 13. Continuous Cartesian tripod gait
-
-Tripod A:
-
-```text
-FR + ML + RR
-```
-
-Tripod B:
-
-```text
-FL + MR + RL
-```
-
-Phase offset: `0.5`.
-
-Использовать одну global phase `0...1`.
-
-Не создавать старую state machine:
-
-```text
-PRELIFT
-LIFT
-TRANSFER
-LOWER
-```
-
-Можно иметь только простые режимы уровня locomotion:
-
-```text
-IDLE
-RUNNING
-STOPPING
-FAULT
-```
-
-и определять stance/swing ноги из continuous phase.
-
-Начальные параметры:
-
-```text
-stance duty = 0.65
-cycle frequency = 0.6 ... 1.5 Hz
-swing height = 30 mm
-ground search range = 15 mm
-```
-
-Частоту gait плавно увеличивать вместе с модулем команды движения.
-
-## 14. Stance
-
-Во время stance стопа должна оставаться неподвижной относительно земли.
-
-Для каждой ноги:
-
-```text
-vFoot = -vBody - omega × r
-```
-
-В 2D:
+Если нога поднялась:
 
 ```cpp
-footVx = -vx + yawRate * footY;
-footVy = -vy - yawRate * footX;
+kContactReleaseCheckHeightMm = 10.0f;
 ```
 
-Во время stance интегрировать:
+или прошло, например:
 
 ```cpp
-footTarget.xy += footVelocity * dt;
+kContactReleaseTimeoutMs = 150;
 ```
 
-Не использовать differential steering вида:
+но `released_event` так и не было:
 
 ```text
-left = forward + turn
-right = forward - turn
+sensor health = SUSPECT_STUCK_HIGH
+released_this_swing = false
 ```
 
-Pure yaw должен автоматически создавать индивидуальную тангенциальную траекторию каждой ноги.
+Не воспринимать дальнейший HIGH как touchdown этого swing.
 
-## 15. Swing
+Для этого шага использовать номинальную open-loop swing trajectory до `expectedGroundZ`.
 
-При переходе ноги в swing:
+Не замораживать робот мгновенно.
 
-* `swingStart = current FootTarget`;
-* вычислить predicted landing position относительно neutral с учётом текущей filtered body velocity;
-* сохранить `swingEnd`.
+После завершения шага запросить controlled stop.
 
-XY и Z интерполировать отдельно.
+Если это повторяется — отметить конкретный датчик `unhealthy`.
 
-Использовать `smootherstep`:
+## 8. SENSOR_STUCK_LOW
+
+Если:
+
+```text
+release был
+DESCEND
+GROUND_SEARCH
+достигнут expectedGroundZ - 15 mm
+contact так и не появился
+```
+
+это может быть либо настоящая яма, либо неисправность датчика.
+
+Зафиксировать:
+
+```text
+NO_GROUND_OR_SENSOR_LOW
+```
+
+Не двигать ногу ниже.
+
+Запросить controlled stop.
+
+## 9. КРИТИЧЕСКИ: временно убрать contact из canStartSwing()
+
+Сейчас `canStartSwing()` требует реальные HIGH от противоположного tripod и строит support polygon по instantaneous contact levels.
+
+Для механических микриков это слишком жёстко и сейчас вероятно блокирует походку.
+
+Добавить:
 
 ```cpp
-s(t) = 6t^5 - 15t^4 + 10t^3;
+enum class ContactMode {
+    Disabled,
+    TouchdownOnly,
+    FullTerrain
+};
 ```
 
-XY:
-
-* первые ~12% swing почти не двигать XY;
-* закончить XY перенос примерно к 82% swing;
-* последние ~18% оставить почти вертикальному touchdown search.
-
-Z:
-
-```text
-0.00 -> 0.35 : быстрый плавный подъём до +30 mm
-0.35 -> 0.82 : плавное снижение до expected ground Z
-0.82 -> 1.00 : controlled search вниз до groundZ - 15 mm
-```
-
-На всех границах не должно быть скачка position.
-
-## 16. Концевики
-
-Inputs:
-
-```text
-HIGH = contact
-LOW = no contact
-```
-
-Внешний pull-up уже есть, поэтому GPIO не должен включать внутренний pull-down.
-
-Debounce:
-
-```text
-12 ms stable state
-```
-
-Хранить для каждой ноги:
+Default сейчас:
 
 ```cpp
-rawContact
-debouncedContact
-localGroundZ
-contactState
+constexpr ContactMode kContactMode = ContactMode::TouchdownOnly;
 ```
 
-Contact корректирует только Cartesian FootTarget.
+В `TouchdownOnly`:
 
-Никогда не делать:
+* tripod gait идёт по нормальной временной фазе;
+* микрики НЕ разрешают и НЕ запрещают начало swing;
+* support polygon НЕ блокирует gait;
+* микрики используются только для:
+
+  * release detection;
+  * early touchdown;
+  * normal touchdown;
+  * ground search;
+  * диагностики неисправного датчика.
+
+`FullTerrain` оставить архитектурно на будущее.
+
+## 10. Support polygon
+
+Не удалять его код.
+
+Но в `TouchdownOnly` не использовать instantaneous microswitch states в `canStartSwing()`.
+
+В будущем `FullTerrain` должен строить support не непосредственно из GPIO, а из устойчивого состояния ноги:
+
+```text
+STANCE + confirmed touchdown
+```
+
+с отдельной временной hysteresis для потери support.
+
+## 11. Controlled stop
+
+Не переводить робот мгновенно в latched FAULT при проблеме одного контактного датчика.
+
+Добавить:
+
+```text
+StopReason:
+NONE
+SENSOR_STUCK_HIGH
+NO_GROUND
+EARLY_COLLISION
+SUPPORT_LOST
+```
+
+При recoverable contact problem:
+
+```text
+requested body velocity -> 0
+не начинать новые swing
+текущий безопасный swing закончить/вернуть
+перейти в устойчивый IDLE
+```
+
+Только действительно критические ошибки IK/servo могут оставаться hard fault.
+
+## 12. Удалить дублирование
+
+Сейчас:
 
 ```cpp
-Femur += ...
-Tibia += ...
+applyTouchdownAdaptation()
 ```
 
-## 17. Touchdown logic
+из `contact_adaptation.cpp` нигде не используется.
 
-Во время swing:
+Либо интегрировать его обязанности в новый `ContactManager`, либо удалить эту функцию.
 
-Если contact становится HIGH:
+Не оставлять две независимые contact architectures.
 
-1. debounce;
-2. считать текущую XYZ фактической точкой touchdown;
-3. сохранить `localGroundZ = currentTarget.z`;
-4. прекратить дальнейшее движение этой ноги вниз;
-5. считать её support leg.
+## 13. Diagnostics
 
-Early touchdown работает точно так же — не продолжать давить вниз.
-
-Если contact не появился до:
+Для каждой ноги нужно видеть:
 
 ```text
-expectedGroundZ - 15 mm
-```
-
-зафиксировать:
-
-```cpp
-FAULT_NO_GROUND
-```
-
-После этого:
-
-* больше не двигать эту ногу вниз;
-* filtered body command -> 0;
-* остановить новые swing transitions;
-* удерживать последний безопасный target;
-* fault оставить latched.
-
-## 18. Проверка stuck contact / оборванного провода
-
-Так как NC switch при обрыве также даст HIGH:
-
-если нога начала swing, поднялась минимум на `8 mm`, но contact продолжает стабильно оставаться HIGH — считать это ошибкой:
-
-```cpp
-FAULT_CONTACT_STUCK
-```
-
-и перейти в безопасный FAULT.
-
-## 19. Safe workspace
-
-Не clamp'ить Coxa/Femur/Tibia по отдельности.
-
-Перед применением FootTarget:
-
-```text
-BODY target
--> BODY/LEG transform
--> IK
--> limits
--> margin
--> singularity
-```
-
-Если requested velocity/stride слишком большая, уменьшать весь body twist одним коэффициентом `0...1`.
-
-Реализовать поиск общего scale через несколько итераций binary search.
-
-Scale применяется к:
-
-```text
-vx
-vy
-yaw
-```
-
-а не отдельно к каждой ноге.
-
-Последняя защита: если конкретный generated FootTarget всё равно invalid, оставить предыдущий valid target.
-
-## 20. Support polygon
-
-Использовать только ноги с `debouncedContact == HIGH`.
-
-Реализовать:
-
-* convex hull XY контактных стоп;
-* проверку точки `(0,0)` BODY frame;
-* minimum support margin примерно `5 mm`.
-
-Перед началом swing Tripod A проверить, что Tripod B реально образует допустимую опору.
-
-Перед swing Tripod B проверить Tripod A.
-
-Если support недостаточен — новую swing phase не начинать.
-
-## 21. Start/stop
-
-`IDLE`:
-
-* neutral stand;
-* phase не движется.
-
-При появлении команды:
-
-* плавно начать gait.
-
-При возврате команды в deadband:
-
-* filtered velocity плавно уменьшается;
-* gait не должен мгновенно замереть с ногой в воздухе;
-* закончить текущий swing;
-* вернуть targets к neutral;
-* перейти в IDLE только в устойчивом положении.
-
-## 22. Main loop
-
-Основной порядок:
-
-```text
-read RC
-update command failsafe
-filter body command
-
-update contact debounce
-
-update locomotion/gait phase
-generate 6 Cartesian targets
-
-apply contact adaptation
-apply workspace/safety checks
-
-BODY -> LEG
-IK for 6 legs
-
-logical angles
--> ServoConfig
--> pulse_us
-
-submit frame to ServoController
-```
-
-Control loop должен использовать реальный `dt`.
-
-## 23. Diagnostics
-
-Через USB stdio выводить примерно 5-10 раз/сек:
-
-```text
-mode
-vx vy yaw
+raw
+stable
+pressed_event
+released_event
 phase
-RC pulses
-contact mask
-workspace scale
-fault
-IK error counter
+released_this_swing
+sensor_health
+localGroundZ
 ```
 
-Не спамить выводом на каждом control tick.
-
-Добавить текстовые названия fault codes.
-
-## 24. Tests
-
-Обязательно сделать host-side тесты для математики, не требующие RP2040.
-
-Минимум:
-
-### FK/IK
-
-Для большого набора допустимых joint angles:
+Основной лог оставить компактным, например:
 
 ```text
-P = FK(q)
-q2 = IK(P)
-FK(q2) ≈ P
+contacts raw=111011 stable=111111
+phase=S,S,L,S,S,L
+event=--R---
+health=OK,OK,OK,OK,OK,OK
 ```
 
 Также:
 
 ```text
-IK(FK(q)) ≈ q
+contact_mode=TOUCHDOWN_ONLY
+stop_reason=NONE
 ```
 
-с учётом выбранной branch continuity.
+## 14. Startup
 
-### Neutral pose
+При startup не считать текущий HIGH отдельным `pressed_event`.
 
-Все 6 neutral targets должны:
+Просто инициализировать stable level текущим физическим состоянием.
 
-* иметь finite XYZ;
-* проходить IK;
-* находиться внутри workspace.
+Первые события должны появиться только после реального изменения GPIO после startup.
 
-### Invalid targets
+## 15. Tests
 
-Проверить:
+Текущие идеальные contact tests недостаточны.
 
-* слишком далёкую точку;
-* слишком близкую точку;
-* singularity;
-* NaN protection.
+Добавить обязательно:
 
-### Gait
+### Switch bounce
 
-Проверить:
-
-* непрерывность FootTarget;
-* tripod phase offset 0.5;
-* отсутствие скачков при начале/остановке;
-* pure yaw создаёт разные тангенциальные velocity для разных ног.
-
-### Contact
-
-Проверить:
-
-* debounce;
-* normal touchdown;
-* early touchdown;
-* no ground;
-* stuck contact.
-
-### Servo mapping
-
-Проверить:
+Последовательность вроде:
 
 ```text
-logical 0 -> center_us
-direction ±1 работает корректно
-pulse limits соблюдаются
+LOW
+HIGH 5ms
+LOW 5ms
+HIGH 5ms
+LOW
 ```
 
-## 25. Код
+не должна создать touchdown.
 
-Требования к качеству:
+### Normal liftoff
 
-* enum для LegId и JointId;
-* никаких magic GPIO по проекту;
-* единицы явно отражать в именах: `_mm`, `_deg`, `_rad`, `_us`;
-* angles внутри math/kinematics хранить в radians;
-* конфигурационные углы можно задавать в degrees и конвертировать;
-* использовать `constexpr`;
-* никаких глобальных изменяемых объектов без необходимости;
-* никаких `new/delete`;
-* никаких исключений;
-* код должен нормально собираться с warnings.
+```text
+HIGH
+начало LIFT
+HIGH некоторое время
+LOW stable 15 ms
+```
 
-## 26. Не реализовывать
+должен появиться ровно один RELEASED.
 
-Не добавлять:
+### Normal touchdown
 
-* neural networks;
-* genetic algorithms;
-* reinforcement learning;
-* MPC;
-* ROS;
-* numerical IK;
-* full dynamics;
-* IMU;
-* Raspberry Pi protocol.
+После release:
 
-Но архитектура должна позволить позже добавить IMU correction перед IK и `UartCommandSource`.
+```text
+LOW
+DESCEND
+HIGH stable 10 ms
+```
 
-## 27. README
+ровно один PRESSED -> touchdown.
 
-Кратко описать:
+### HIGH в начале lift
 
-* build/flash;
-* GPIO;
-* servo calibration table;
-* RC диапазоны;
-* основные параметры gait;
-* fault codes;
-* как запустить host tests.
+HIGH сразу после начала swing не должен считаться touchdown или fault.
 
-## 28. Что сделать сейчас
+### Stuck HIGH
 
-Не ограничивайся планом или описанием.
+HIGH остаётся весь lift.
 
-1. Удали старую реализацию `RP2040RobotController`.
-2. Создай новый проект.
-3. Реализуй весь код выше.
-4. Добавь PIO program.
-5. Добавь CMake.
-6. Добавь tests.
-7. Собери проект.
-8. Исправь compile errors/warnings.
-9. Запусти доступные host tests.
-10. В конце дай короткий отчёт:
+Ожидается:
 
-* какие файлы созданы;
-* что реализовано;
-* результат build/tests;
-* какие параметры пользователь должен физически откалибровать на конкретном роботе.
+```text
+SENSOR_STUCK_HIGH
+```
 
-Не менять описанную архитектуру без необходимости. Если возникает небольшая неоднозначность реализации — выбирай наиболее простой deterministic вариант, совместимый с требованиями выше, и продолжай работу без запроса подтверждения.
+но не мгновенный global freeze.
+
+### Stuck LOW / hole
+
+release произошёл, но HIGH нет до конца ground search.
+
+Ожидается controlled stop.
+
+### Chatter during stance
+
+Короткий LOW во время stance не должен остановить gait.
+
+### Touchdown before DESCEND
+
+PRESSED во время TRANSFER не должен превращаться в нормальный support touchdown.
+
+## 16. Hardware test mode
+
+Добавить:
+
+```cpp
+constexpr bool kContactDiagnosticMode = false;
+```
+
+При `true` сервы стоят в neutral, gait выключен, а USB показывает состояния шести датчиков.
+
+Чтобы пользователь мог руками нажать каждый микрик и проверить:
+
+```text
+FL GP28
+ML GP27
+RL GP26
+RR GP22
+MR GP21
+FR GP20
+```
+
+Для каждого должны правильно появляться:
+
+```text
+LOW -> RELEASED
+HIGH -> PRESSED
+```
+
+## 17. После изменений
+
+1. Собери host tests.
+2. Запусти их.
+3. Собери Pico firmware.
+4. Не ограничивайся описанием.
+
+В конце коротко сообщи:
+
+* какие части старой contact architecture удалены;
+* как теперь определяется RELEASED;
+* когда именно разрешён TOUCHDOWN;
+* как работает GROUND_SEARCH;
+* почему один дребезжащий датчик больше не блокирует весь tripod;
+* где переключается `ContactMode`;
+* результаты tests/build.

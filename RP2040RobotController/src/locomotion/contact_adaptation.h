@@ -1,43 +1,40 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 
 #include "config/robot_config.h"
-#include "math/vec3.h"
 
 namespace hexapod {
 
-struct ContactSample {
-    bool raw_contact = false;
-    bool debounced_contact = false;
-    float stable_ms = 0.0f;
+struct ContactState {
+    bool raw = false;
+    bool stable = false;
+    bool pressed_event = false;
+    bool released_event = false;
+    std::uint32_t stable_ms = 0;
+    bool healthy = true;
+    std::uint32_t stuck_count = 0;
+    SensorHealth health = SensorHealth::Ok;
     float local_ground_z_mm = 0.0f;
 };
 
-class ContactDebouncer {
+class ContactManager {
 public:
     void reset(const std::array<bool, kLegCount>& raw_contacts);
     void update(const std::array<bool, kLegCount>& raw_contacts, float dt_s);
 
-    bool contact(LegId leg) const { return samples_[indexOf(leg)].debounced_contact; }
-    std::array<bool, kLegCount> contacts() const;
-    const ContactSample& sample(LegId leg) const { return samples_[indexOf(leg)]; }
-    void setLocalGroundZ(LegId leg, float z_mm) { samples_[indexOf(leg)].local_ground_z_mm = z_mm; }
+    const std::array<ContactState, kLegCount>& states() const { return states_; }
+    const ContactState& state(LegId leg) const { return states_[indexOf(leg)]; }
+    std::array<bool, kLegCount> rawContacts() const;
+    std::array<bool, kLegCount> stableContacts() const;
+    bool stableContact(LegId leg) const { return states_[indexOf(leg)].stable; }
+    void setLocalGroundZ(LegId leg, float z_mm) { states_[indexOf(leg)].local_ground_z_mm = z_mm; }
+    void markSensorHealth(LegId leg, SensorHealth health);
 
 private:
-    std::array<ContactSample, kLegCount> samples_{};
+    std::array<ContactState, kLegCount> states_{};
+    std::array<float, kLegCount> raw_stable_ms_{};
 };
-
-struct ContactAdaptationResult {
-    bool fault = false;
-    FaultCode fault_code = FaultCode::None;
-};
-
-ContactAdaptationResult applyTouchdownAdaptation(LegId leg,
-                                                 bool is_swing,
-                                                 bool contact,
-                                                 float expected_ground_z_mm,
-                                                 Vec3* foot_target_body_mm,
-                                                 ContactDebouncer* contacts);
 
 }  // namespace hexapod

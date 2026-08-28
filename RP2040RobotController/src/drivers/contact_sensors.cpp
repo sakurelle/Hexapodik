@@ -13,7 +13,7 @@ void ContactSensors::init() {
         gpio_set_dir(gpio, GPIO_IN);
     }
 #endif
-    debouncer_.reset(readRaw());
+    manager_.reset(readRaw());
     initialized_ = true;
 }
 
@@ -21,7 +21,7 @@ void ContactSensors::update(float dt_s) {
     if (!initialized_) {
         init();
     }
-    debouncer_.update(readRaw(), dt_s);
+    manager_.update(readRaw(), dt_s);
 }
 
 std::array<bool, kLegCount> ContactSensors::readRaw() const {

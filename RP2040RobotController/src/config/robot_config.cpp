@@ -26,4 +26,44 @@ const char* faultName(FaultCode fault) {
     return "FAULT_UNKNOWN";
 }
 
+const char* locomotionModeName(LocomotionMode mode) {
+    switch (mode) {
+        case LocomotionMode::Idle: return "IDLE";
+        case LocomotionMode::Running: return "RUNNING";
+        case LocomotionMode::Stopping: return "STOPPING";
+        case LocomotionMode::Fault: return "FAULT";
+    }
+    return "?";
+}
+
+const char* contactModeName(ContactMode mode) {
+    switch (mode) {
+        case ContactMode::Disabled: return "DISABLED";
+        case ContactMode::TouchdownOnly: return "TOUCHDOWN_ONLY";
+        case ContactMode::FullTerrain: return "FULL_TERRAIN";
+    }
+    return "?";
+}
+
+const char* stopReasonName(StopReason reason) {
+    switch (reason) {
+        case StopReason::None: return "NONE";
+        case StopReason::SensorStuckHigh: return "SENSOR_STUCK_HIGH";
+        case StopReason::NoGround: return "NO_GROUND";
+        case StopReason::EarlyCollision: return "EARLY_COLLISION";
+        case StopReason::SupportLost: return "SUPPORT_LOST";
+    }
+    return "?";
+}
+
+const char* sensorHealthName(SensorHealth health) {
+    switch (health) {
+        case SensorHealth::Ok: return "OK";
+        case SensorHealth::SuspectStuckHigh: return "SUSPECT_STUCK_HIGH";
+        case SensorHealth::SuspectStuckLow: return "SUSPECT_STUCK_LOW";
+        case SensorHealth::Unhealthy: return "UNHEALTHY";
+    }
+    return "?";
+}
+
 }  // namespace hexapod

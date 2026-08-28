@@ -65,9 +65,12 @@ pico_generate_pio_header(RP2040RobotController
 target_link_libraries(RP2040RobotController PRIVATE
     hexapod_core
     pico_stdlib
+    hardware_clocks
     hardware_dma
     hardware_gpio
+    hardware_irq
     hardware_pio
+    hardware_sync
 )
 
 target_compile_options(RP2040RobotController PRIVATE

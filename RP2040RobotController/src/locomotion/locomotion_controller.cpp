@@ -20,7 +20,7 @@ void LocomotionController::reset() {
 }
 
 LocomotionStepResult LocomotionController::update(BodyCommand requested_command,
-                                                  const std::array<bool, kLegCount>& contacts,
+                                                  const std::array<ContactState, kLegCount>& contacts,
                                                   float dt_s) {
     if (!initialized_) {
         reset();
@@ -45,6 +45,9 @@ LocomotionStepResult LocomotionController::update(BodyCommand requested_command,
 
     filtered_command_ = filtered_command_ * accepted_scale;
     accepted_output = gait_.update(filtered_command_, contacts, dt_s);
+    if (accepted_output.stop_reason != StopReason::None) {
+        filtered_command_ = {};
+    }
 
     const bool valid = validateAllFootTargets(accepted_output.feet_body_mm, last_valid_joints_, &accepted_joints);
     if (valid) {
@@ -57,11 +60,21 @@ LocomotionStepResult LocomotionController::update(BodyCommand requested_command,
     LocomotionStepResult result;
     result.mode = accepted_output.mode;
     result.fault = valid ? accepted_output.fault : FaultCode::IkInvalid;
+    result.fault_leg = accepted_output.fault_leg;
+    result.stop_reason = accepted_output.stop_reason;
+    result.stop_leg = accepted_output.stop_leg;
     result.phase = accepted_output.phase;
     result.workspace_scale = accepted_scale;
     result.ik_error_counter = ik_error_counter_;
+    result.support_ok = accepted_output.support_ok;
+    result.waiting_for_support = accepted_output.waiting_for_support;
     result.feet_body_mm = valid ? accepted_output.feet_body_mm : last_valid_feet_;
     result.joints = last_valid_joints_;
+    result.swing = accepted_output.swing;
+    result.leg_phase = accepted_output.leg_phase;
+    result.released_this_swing = accepted_output.released_this_swing;
+    result.sensor_health = accepted_output.sensor_health;
+    result.local_ground_z_mm = accepted_output.local_ground_z_mm;
     result.joints_valid = valid;
     return result;
 }
