@@ -1,524 +1,525 @@
-Работай с текущей версией `RP2040RobotController`.
+Работай с текущим `RP2040RobotController`.
 
-Текущую contact logic нужно переработать, а не продолжать латать.
+Сейчас робот работает, но максимальная скорость искусственно сильно ограничена. Нужно выставить максимально возможный профиль скорости для текущей геометрии и gait, исправить неправильное вычисление частоты шага и добавить диагностику скорости.
 
-На реальном роботе после команды он немного начинает движение и затем останавливается. Текущие host tests проходят, поэтому проблема в том, что тестовая модель контактов слишком идеальная для реальных NC механических микриков.
+Не менять contact logic, PIO/DMA, IK/FK, ServoConfig и UART architecture без необходимости.
 
-Не менять PIO/DMA, servo mapping, IK/FK и RC.
+## 1. Текущая проблема
 
-## 1. Главная проблема
-
-Сейчас `GaitGenerator` слишком сильно зависит от мгновенных debounced contact levels:
-
-* contact используется для liftoff;
-* touchdown;
-* ContactStuck;
-* NoGround;
-* canStartSwing();
-* support polygon.
-
-Из-за одного ненажатого или дребезжащего микрика может остановиться весь gait.
-
-Переработать contact subsystem на event-based architecture.
-
-## 2. ContactSensor должен выдавать события
-
-Для каждой ноги хранить:
+Сейчас в `robot_config.h`:
 
 ```cpp
-struct ContactState {
-    bool raw;
-    bool stable;
+kMaxVxMmS = 80
+kMaxVyMmS = 0
+kMaxYawRadS = 0.45
 
-    bool pressed_event;   // LOW -> HIGH
-    bool released_event;  // HIGH -> LOW
+kMaxVxAccelMmS2 = 200
+kMaxVyAccelMmS2 = 200
+kMaxYawAccelRadS2 = 1.5
 
-    uint32_t stable_ms;
-
-    bool healthy;
-    uint32_t stuck_count;
-};
+kMinCycleHz = 0.6
+kMaxCycleHz = 1.5
 ```
 
-События должны появляться только на один control tick после подтверждённого изменения состояния.
-
-Напоминание по аппаратной логике:
-
-```text
-LOW  = стопа не касается пола
-HIGH = стопа касается пола
-```
-
-NC + внешний pull-up 4.7k.
-
-## 3. Сделать асимметричный debounce
-
-Для механического микрика:
+Кроме того, в `gait_generator.cpp` частота gait вычисляется неправильно:
 
 ```cpp
-constexpr uint32_t kContactPressDebounceMs = 10;
-constexpr uint32_t kContactReleaseDebounceMs = 15;
+const float command_level =
+    std::clamp(commandMagnitude(command) / 125.0f, 0.0f, 1.0f);
 ```
 
-То есть:
+При `vx=80` это даёт только:
 
-* HIGH должен быть стабильным 10 ms -> PRESSED;
-* LOW должен быть стабильным 15 ms -> RELEASED.
+```text
+80 / 125 = 0.64
+```
 
-Не использовать один `kContactDebounceMs` для обоих переходов.
+поэтому чистый full-forward даже не достигает `kMaxCycleHz`.
 
-Control loop 200 Hz, поэтому считать время через реальный `dt`, не через количество вызовов.
+Эту схему удалить.
 
-## 4. Убрать contact state machine из GaitGenerator
+## 2. Максимальный профиль
 
-Не хранить:
+Для текущей геометрии:
+
+```text
+Coxa = 44 mm
+Femur = 80 mm
+Tibia = 125.24 mm
+
+joint safety margin = 5°
+swing height = 30 mm
+stance duty = 0.65
+```
+
+расчётный безопасный workspace с уже существующим 5° margin позволяет примерно:
+
+```text
+forward half-stride ≈ 91 mm
+```
+
+При максимальной частоте:
 
 ```cpp
-WaitingForRelease
-Airborne
-Touchdown
+constexpr float kMaxCycleHz = 1.575f;
 ```
 
-как интерпретацию самого GPIO.
+получается:
 
-Вместо этого gait должен иметь собственную механическую фазу ноги:
+```text
+max Vx ≈ 440 mm/s
+```
+
+Установить:
 
 ```cpp
-enum class LegPhase {
-    Stance,
-    Lift,
-    Transfer,
-    Descend,
-    GroundSearch
-};
+constexpr float kMaxVxMmS = 440.0f;
+constexpr float kMaxVyMmS = 355.0f;
+constexpr float kMaxYawRadS = 3.0f;
 ```
 
-Это состояние траектории, а не состояние датчика.
+`Vy` сейчас RC не использует, но он нужен для будущего ROS2 `/cmd_vel`.
 
-ContactManager только сообщает события.
+## 3. Почему max cycle = 1.575 Hz
 
-## 5. Новый lifecycle swing
-
-### STANCE
-
-Микрик здесь НЕ управляет gait phase напрямую.
-
-Потеря контакта на несколько миллисекунд не должна останавливать робота.
-
-### LIFT
-
-Стопа начинает подниматься.
-
-HIGH здесь нормально — нога ещё физически не успела оторваться.
-
-`pressed_event` полностью игнорировать.
-
-Когда появляется:
+Текущий swing занимает:
 
 ```text
-released_event
+1 - kStanceDuty = 0.35 cycle
 ```
 
-записать:
+Descend занимает:
+
+```text
+0.82 ... 1.00 swing
+= 18% swing
+```
+
+Итого:
+
+```text
+0.35 * 0.18 = 0.063 полного цикла
+```
+
+Servo targets обновляются 50 Hz = каждые 20 ms.
+
+Требование:
+
+```text
+Descend >= 2 servo frames = 40 ms
+```
+
+Отсюда:
+
+```text
+0.063 / cycleHz >= 0.040
+cycleHz <= 1.575 Hz
+```
+
+Поэтому для текущей формы trajectory:
 
 ```cpp
-released_this_swing = true;
+kMaxCycleHz = 1.575f;
 ```
 
-### TRANSFER
+Не увеличивать выше без изменения swing trajectory или servo output update frequency.
 
-Нога переносится по XY.
+## 4. Acceleration
 
-Обычный touchdown здесь не принимать.
+Сделать разгон достаточно быстрым, чтобы max command достигался примерно за половину цикла на максимальной скорости.
 
-Если контакт возник после уже подтверждённого release слишком рано, считать это `EARLY_COLLISION`, но пока не делать global FAULT.
-
-Для первой реализации просто остановить дальнейшее движение этой ноги вниз/в сторону и запросить controlled stop робота.
-
-### DESCEND
-
-Только здесь разрешён нормальный touchdown.
-
-Условия touchdown:
+При:
 
 ```text
-released_this_swing == true
-AND
-pressed_event == true
+1 / 1.575 ≈ 0.635 s
+half-cycle ≈ 0.317 s
 ```
 
-После touchdown:
-
-```text
-current target Z -> localGroundZ
-закончить swing этой ноги
-перевести её в STANCE
-```
-
-Никакого дополнительного движения вниз.
-
-Early touchdown в начале DESCEND должен работать аналогично:
-текущий Z становится новым ground level.
-
-## 6. Late touchdown / GroundSearch
-
-Если нога дошла до ожидаемого:
-
-```text
-expectedGroundZ
-```
-
-и контакта ещё нет:
-
-не выдавать сразу FAULT_NO_GROUND.
-
-Перейти:
-
-```text
-DESCEND -> GROUND_SEARCH
-```
-
-В `GROUND_SEARCH`:
-
-* XY полностью зафиксирован;
-* Z двигать вниз с постоянной небольшой скоростью:
+установить:
 
 ```cpp
-kGroundSearchSpeedMmS = 15.0f;
+constexpr float kMaxVxAccelMmS2 = 1400.0f;
+constexpr float kMaxVyAccelMmS2 = 1150.0f;
+constexpr float kMaxYawAccelRadS2 = 10.0f;
 ```
 
-* предел:
+Это должно позволять почти полностью изменить команду за ~half-cycle.
+
+Slew limiter оставить.
+
+## 5. Исправить command_level
+
+Не использовать:
 
 ```cpp
-kGroundSearchMm = 15.0f;
+commandMagnitude(command) / 125
 ```
 
-Если появился `pressed_event`:
-
-```text
--> STANCE
-localGroundZ = currentZ
-```
-
-Если достигнут весь search range:
-
-```text
-NO_GROUND
-```
-
-Тогда остановить дальнейшее опускание ноги и запросить controlled gait stop.
-
-## 7. SENSOR_STUCK_HIGH вместо мгновенного ContactStuck
-
-NC провод при обрыве также выглядит как постоянный HIGH.
-
-Поэтому текущая схема:
-
-```text
-HIGH при подъёме
--> FAULT_CONTACT_STUCK
--> полностью заморозить робот
-```
-
-не подходит.
-
-Если нога поднялась:
+Использовать нормализацию каждой оси относительно её реального максимума:
 
 ```cpp
-kContactReleaseCheckHeightMm = 10.0f;
+const float vx_level =
+    std::fabs(command.vx_mm_s) / kMaxVxMmS;
+
+const float vy_level =
+    kMaxVyMmS > 0.0f
+        ? std::fabs(command.vy_mm_s) / kMaxVyMmS
+        : 0.0f;
+
+const float yaw_level =
+    std::fabs(command.yaw_rad_s) / kMaxYawRadS;
+
+const float command_level = std::clamp(
+    std::max({vx_level, vy_level, yaw_level}),
+    0.0f,
+    1.0f
+);
 ```
 
-или прошло, например:
+Таким образом:
+
+```text
+100% forward -> kMaxCycleHz
+100% strafe  -> kMaxCycleHz
+100% yaw     -> kMaxCycleHz
+```
+
+Не должно требоваться одновременно forward+yaw для достижения максимальной частоты.
+
+## 6. Cycle frequency
+
+Оставить интерполяцию:
 
 ```cpp
-kContactReleaseTimeoutMs = 150;
+cycle_hz =
+    kMinCycleHz +
+    (kMaxCycleHz - kMinCycleHz) * command_level;
 ```
 
-но `released_event` так и не было:
-
-```text
-sensor health = SUSPECT_STUCK_HIGH
-released_this_swing = false
-```
-
-Не воспринимать дальнейший HIGH как touchdown этого swing.
-
-Для этого шага использовать номинальную open-loop swing trajectory до `expectedGroundZ`.
-
-Не замораживать робот мгновенно.
-
-После завершения шага запросить controlled stop.
-
-Если это повторяется — отметить конкретный датчик `unhealthy`.
-
-## 8. SENSOR_STUCK_LOW
-
-Если:
-
-```text
-release был
-DESCEND
-GROUND_SEARCH
-достигнут expectedGroundZ - 15 mm
-contact так и не появился
-```
-
-это может быть либо настоящая яма, либо неисправность датчика.
-
-Зафиксировать:
-
-```text
-NO_GROUND_OR_SENSOR_LOW
-```
-
-Не двигать ногу ниже.
-
-Запросить controlled stop.
-
-## 9. КРИТИЧЕСКИ: временно убрать contact из canStartSwing()
-
-Сейчас `canStartSwing()` требует реальные HIGH от противоположного tripod и строит support polygon по instantaneous contact levels.
-
-Для механических микриков это слишком жёстко и сейчас вероятно блокирует походку.
-
-Добавить:
+`kMinCycleHz` пока оставить:
 
 ```cpp
-enum class ContactMode {
-    Disabled,
-    TouchdownOnly,
-    FullTerrain
-};
+constexpr float kMinCycleHz = 0.6f;
 ```
 
-Default сейчас:
+То есть малые команды остаются управляемыми, а full stick сразу получает максимум.
+
+## 7. Проверить stride
+
+Для прямого движения полный nominal stride можно считать:
 
 ```cpp
-constexpr ContactMode kContactMode = ContactMode::TouchdownOnly;
+stride_mm =
+    std::fabs(vx_mm_s) *
+    kStanceDuty /
+    cycle_hz;
 ```
 
-В `TouchdownOnly`:
-
-* tripod gait идёт по нормальной временной фазе;
-* микрики НЕ разрешают и НЕ запрещают начало swing;
-* support polygon НЕ блокирует gait;
-* микрики используются только для:
-
-  * release detection;
-  * early touchdown;
-  * normal touchdown;
-  * ground search;
-  * диагностики неисправного датчика.
-
-`FullTerrain` оставить архитектурно на будущее.
-
-## 10. Support polygon
-
-Не удалять его код.
-
-Но в `TouchdownOnly` не использовать instantaneous microswitch states в `canStartSwing()`.
-
-В будущем `FullTerrain` должен строить support не непосредственно из GPIO, а из устойчивого состояния ноги:
+При максимуме должно получаться примерно:
 
 ```text
-STANCE + confirmed touchdown
+440 * 0.65 / 1.575
+≈ 181.6 mm
 ```
 
-с отдельной временной hysteresis для потери support.
-
-## 11. Controlled stop
-
-Не переводить робот мгновенно в latched FAULT при проблеме одного контактного датчика.
-
-Добавить:
+Half-stride:
 
 ```text
-StopReason:
-NONE
-SENSOR_STUCK_HIGH
-NO_GROUND
-EARLY_COLLISION
-SUPPORT_LOST
+≈ 90.8 mm
 ```
 
-При recoverable contact problem:
+Это почти текущий геометрический максимум примерно 91 мм.
+
+Не увеличивать `Vx` выше 440 мм/с при этой частоте и текущем workspace.
+
+## 8. Workspace scaling оставить
+
+Существующий:
 
 ```text
-requested body velocity -> 0
-не начинать новые swing
-текущий безопасный swing закончить/вернуть
-перейти в устойчивый IDLE
+findWorkspaceScale()
 ```
 
-Только действительно критические ошибки IK/servo могут оставаться hard fault.
+обязательно сохранить.
 
-## 12. Удалить дублирование
+Для смешанной команды:
 
-Сейчас:
+```text
+forward + yaw
+forward + strafe
+strafe + yaw
+```
+
+индивидуальные максимумы могут одновременно быть недостижимы.
+
+В этом случае текущий workspace scaler должен пропорционально уменьшить весь body twist:
+
+```text
+vx
+vy
+yaw
+```
+
+одним коэффициентом.
+
+Не clamp'ить отдельные оси независимо после генерации gait.
+
+## 9. Проверить max envelope host-side
+
+Не просто захардкодить числа.
+
+Добавить host-side тест/utility, который численно проверяет текущий speed envelope.
+
+Для заданного `cycle_hz = kMaxCycleHz`:
+
+### Pure forward
+
+Увеличивать `vx` до момента, когда trajectory перестаёт проходить:
+
+```text
+IK
+joint limits
+5° safety margin
+singularity
+swing height
+```
+
+Проверять полный stance/swing trajectory всех 6 ног, а не только landing point.
+
+Ожидаемый предел:
+
+```text
+~440 mm/s
+```
+
+### Pure strafe
+
+Аналогично:
+
+```text
+~355 mm/s
+```
+
+### Pure yaw
+
+Аналогично:
+
+```text
+~3.0 rad/s
+```
+
+Допуск на численную дискретизацию разумный.
+
+Если реальный расчёт по существующему коду даст немного меньший предел — использовать фактически вычисленный предел, округлённый немного вниз.
+
+Не использовать мои значения слепо, если текущая реализация геометрии отличается.
+
+## 10. Servo physical speed
+
+В проекте пока нет точной модели физической скорости сервоприводов.
+
+Поэтому НЕ вводить выдуманный servo-speed limiter.
+
+Но добавить diagnostics, позволяющую измерить требования к сервам.
+
+Каждый control tick вычислять для каждой сервы:
 
 ```cpp
-applyTouchdownAdaptation()
+joint_velocity_rad_s =
+    abs(q_new - q_previous) / dt;
 ```
 
-из `contact_adaptation.cpp` нигде не используется.
-
-Либо интегрировать его обязанности в новый `ContactManager`, либо удалить эту функцию.
-
-Не оставлять две независимые contact architectures.
-
-## 13. Diagnostics
-
-Для каждой ноги нужно видеть:
+Хранить:
 
 ```text
-raw
-stable
-pressed_event
-released_event
-phase
-released_this_swing
-sensor_health
-localGroundZ
+max_requested_joint_velocity_rad_s
+max_requested_joint_velocity_deg_s
 ```
 
-Основной лог оставить компактным, например:
+за последний diagnostic interval.
+
+Не ограничивать по этому значению пока.
+
+Нужно увидеть реальные требования на физическом роботе, после чего предел можно будет выставить по datasheet/измерению серв.
+
+## 11. Telemetry
+
+Сейчас в telemetry добавить:
 
 ```text
-contacts raw=111011 stable=111111
-phase=S,S,L,S,S,L
-event=--R---
-health=OK,OK,OK,OK,OK,OK
+cycle_hz
+command_level
+stride_x_mm
+stride_y_mm
+workspace_scale
+max_joint_velocity_deg_s
 ```
 
-Также:
+USB лог должен показывать примерно:
 
 ```text
-contact_mode=TOUCHDOWN_ONLY
-stop_reason=NONE
+cmd=0.440,0.000,0.000
+filtered=440.0,0.0,0.000
+cycle=1.575
+stride_x=181.6
+workspace=1.00
+joint_vmax=...
 ```
 
-## 14. Startup
-
-При startup не считать текущий HIGH отдельным `pressed_event`.
-
-Просто инициализировать stable level текущим физическим состоянием.
-
-Первые события должны появиться только после реального изменения GPIO после startup.
-
-## 15. Tests
-
-Текущие идеальные contact tests недостаточны.
-
-Добавить обязательно:
-
-### Switch bounce
-
-Последовательность вроде:
+Если на full stick:
 
 ```text
-LOW
-HIGH 5ms
-LOW 5ms
-HIGH 5ms
-LOW
+workspace < 1.0
 ```
 
-не должна создать touchdown.
+это означает, что реальная текущая trajectory уже достигла геометрического ограничения.
 
-### Normal liftoff
+## 12. RC
+
+Проверить существующую нормализацию RC.
+
+При полном forward stick выход должен быть:
 
 ```text
-HIGH
-начало LIFT
-HIGH некоторое время
-LOW stable 15 ms
+vx = +440 mm/s
 ```
 
-должен появиться ровно один RELEASED.
-
-### Normal touchdown
-
-После release:
+при полном reverse:
 
 ```text
-LOW
-DESCEND
-HIGH stable 10 ms
+vx = -440 mm/s
 ```
 
-ровно один PRESSED -> touchdown.
-
-### HIGH в начале lift
-
-HIGH сразу после начала swing не должен считаться touchdown или fault.
-
-### Stuck HIGH
-
-HIGH остаётся весь lift.
-
-Ожидается:
+при полном yaw:
 
 ```text
-SENSOR_STUCK_HIGH
+yaw = +/-3.0 rad/s
 ```
 
-но не мгновенный global freeze.
+Deadband сохранить.
 
-### Stuck LOW / hole
+Не менять GPIO/IRQ capture.
 
-release произошёл, но HIGH нет до конца ground search.
+## 13. ROS2
 
-Ожидается controlled stop.
+Сохранить SI conversion на внешнем интерфейсе.
 
-### Chatter during stance
+Будущий ROS2 `/cmd_vel` должен принимать:
 
-Короткий LOW во время stance не должен остановить gait.
+```text
+linear.x = +/-0.440 m/s
+linear.y = +/-0.355 m/s
+angular.z = +/-3.0 rad/s
+```
 
-### Touchdown before DESCEND
+UART command source должен использовать те же ограничения.
 
-PRESSED во время TRANSFER не должен превращаться в нормальный support touchdown.
+## 14. Тесты
 
-## 16. Hardware test mode
+Добавить/обновить tests:
 
-Добавить:
+### Normalization
+
+```text
+vx=max -> command_level=1
+vy=max -> command_level=1
+yaw=max -> command_level=1
+```
+
+### Cycle
+
+```text
+full axis -> cycle_hz = 1.575
+zero -> cycle_hz = kMinCycleHz
+```
+
+### Forward max
+
+На full forward:
+
+```text
+nominal stride ≈ 181.6 mm
+```
+
+### Workspace
+
+Pure full-forward должен либо:
+
+```text
+workspace_scale ≈ 1.0
+```
+
+либо быть очень близок к нему.
+
+Если scale значительно ниже 1, численно пересчитать реальный max Vx и установить его.
+
+### Mixed command
+
+```text
+vx=max
+yaw=max
+```
+
+не должен давать invalid IK.
+
+Workspace scaler должен уменьшить общий command scale.
+
+### 100 gait cycles
+
+Прогнать simulation с максимальным pure forward command не менее 100 cycles.
+
+Не должно быть:
+
+```text
+NaN
+IK fault
+permanent stop
+invalid joint
+```
+
+Отдельно pure yaw и pure strafe.
+
+## 15. Не менять
+
+Не менять без найденной необходимости:
+
+* contact FSM;
+* adaptive landing;
+* PIO/DMA;
+* servo pulse ranges;
+* servo calibration;
+* geometry;
+* IK/FK formulas;
+* UART protocol.
+
+Задача сейчас именно снять искусственные ограничения скорости и проверить реальный кинематический envelope.
+
+## 16. Итоговые параметры
+
+Ориентировочно должны стать:
 
 ```cpp
-constexpr bool kContactDiagnosticMode = false;
+constexpr float kMaxVxMmS = 440.0f;
+constexpr float kMaxVyMmS = 355.0f;
+constexpr float kMaxYawRadS = 3.0f;
+
+constexpr float kMaxVxAccelMmS2 = 1400.0f;
+constexpr float kMaxVyAccelMmS2 = 1150.0f;
+constexpr float kMaxYawAccelRadS2 = 10.0f;
+
+constexpr float kMinCycleHz = 0.6f;
+constexpr float kMaxCycleHz = 1.575f;
 ```
 
-При `true` сервы стоят в neutral, gait выключен, а USB показывает состояния шести датчиков.
+Но speed-envelope test имеет приоритет: если численная проверка текущей фактической IK/trajectory даёт предел чуть ниже, установить максимально возможное значение, которое проходит тест.
 
-Чтобы пользователь мог руками нажать каждый микрик и проверить:
+После работы:
 
-```text
-FL GP28
-ML GP27
-RL GP26
-RR GP22
-MR GP21
-FR GP20
-```
-
-Для каждого должны правильно появляться:
-
-```text
-LOW -> RELEASED
-HIGH -> PRESSED
-```
-
-## 17. После изменений
-
-1. Собери host tests.
-2. Запусти их.
-3. Собери Pico firmware.
-4. Не ограничивайся описанием.
-
-В конце коротко сообщи:
-
-* какие части старой contact architecture удалены;
-* как теперь определяется RELEASED;
-* когда именно разрешён TOUCHDOWN;
-* как работает GROUND_SEARCH;
-* почему один дребезжащий датчик больше не блокирует весь tripod;
-* где переключается `ContactMode`;
-* результаты tests/build.
+1. собрать host tests;
+2. прогнать speed-envelope tests;
+3. прогнать 100 gait cycles на max forward/yaw/strafe;
+4. собрать Pico firmware;
+5. сообщить фактически вычисленные максимумы;
+6. сообщить max requested joint velocity;
+7. указать итоговые значения config;
+8. указать путь к `.uf2`.

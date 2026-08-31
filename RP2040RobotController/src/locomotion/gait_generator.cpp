@@ -26,6 +26,7 @@ const char* legPhaseName(LegPhase phase) {
         case LegPhase::Transfer: return "T";
         case LegPhase::Descend: return "D";
         case LegPhase::GroundSearch: return "G";
+        case LegPhase::LandedHold: return "H";
     }
     return "?";
 }
@@ -58,15 +59,17 @@ GaitOutput GaitGenerator::update(BodyCommand command,
         command = {};
     } else if (mode_ == LocomotionMode::Idle && !commandIsZero(command)) {
         mode_ = LocomotionMode::Running;
+    } else if (mode_ == LocomotionMode::Stopping && stop_reason_ == StopReason::None && !commandIsZero(command)) {
+        mode_ = LocomotionMode::Running;
     } else if (mode_ == LocomotionMode::Running && commandIsZero(command)) {
         mode_ = LocomotionMode::Stopping;
     }
 
-    const float command_level = std::clamp(commandMagnitude(command) / 125.0f, 0.0f, 1.0f);
-    const float cycle_hz = kMinCycleHz + (kMaxCycleHz - kMinCycleHz) * command_level;
+    const float level = commandLevel(command);
+    const float cycle_hz = cycleFrequencyHz(command);
 
     if (mode_ == LocomotionMode::Fault) {
-        return makeOutput(cycle_hz, true, false);
+        return makeOutput(cycle_hz, level, true, false);
     }
 
     bool support_ok = true;
@@ -94,7 +97,10 @@ GaitOutput GaitGenerator::update(BodyCommand command,
         const float offset = legInTripodA(leg) ? 0.0f : 0.5f;
         float local_phase = phase_ + offset;
         local_phase -= std::floor(local_phase);
-        const bool wants_swing = allow_new_swing && local_phase >= kStanceDuty;
+        if (!legs_[i].in_swing && legs_[i].phase == LegPhase::LandedHold && local_phase < kStanceDuty) {
+            legs_[i].phase = LegPhase::Stance;
+        }
+        const bool wants_swing = allow_new_swing && legs_[i].phase == LegPhase::Stance && local_phase >= kStanceDuty;
 
         if (!legs_[i].in_swing && wants_swing) {
             if (canStartSwing(leg, contacts)) {
@@ -107,7 +113,7 @@ GaitOutput GaitGenerator::update(BodyCommand command,
 
         if (legs_[i].in_swing) {
             updateSwing(leg, local_phase, contacts[i], motion_dt_s);
-        } else if (mode_ == LocomotionMode::Running) {
+        } else if (mode_ == LocomotionMode::Running && legs_[i].phase == LegPhase::Stance) {
             legs_[i].target_body_mm += stanceVelocityForFoot(command, legs_[i].target_body_mm) * motion_dt_s;
         } else if (mode_ == LocomotionMode::Stopping || mode_ == LocomotionMode::Idle) {
             legs_[i].target_body_mm += (neutral_[i] - legs_[i].target_body_mm) *
@@ -125,10 +131,17 @@ GaitOutput GaitGenerator::update(BodyCommand command,
         if (near_neutral) {
             mode_ = LocomotionMode::Idle;
             phase_ = 0.0f;
+            stop_reason_ = StopReason::None;
+            stop_leg_ = LegId::Count;
+            for (LegGaitState& leg : legs_) {
+                if (leg.phase == LegPhase::LandedHold) {
+                    leg.phase = LegPhase::Stance;
+                }
+            }
         }
     }
 
-    return makeOutput(cycle_hz, support_ok, waiting_for_support);
+    return makeOutput(cycle_hz, level, support_ok, waiting_for_support);
 }
 
 bool GaitGenerator::legInTripodA(LegId leg) const {
@@ -147,7 +160,9 @@ bool GaitGenerator::canStartSwing(LegId leg, const std::array<ContactState, kLeg
     const bool lifting_a = legInTripodA(leg);
     for (std::size_t i = 0; i < kLegCount; ++i) {
         const LegId other = static_cast<LegId>(i);
-        support[i] = contacts[i].stable && legs_[i].phase == LegPhase::Stance && (legInTripodA(other) != lifting_a);
+        support[i] = contacts[i].stable &&
+                     (legs_[i].phase == LegPhase::Stance || legs_[i].phase == LegPhase::LandedHold) &&
+                     (legInTripodA(other) != lifting_a);
         feet[i] = legs_[i].target_body_mm;
     }
     return hasStableSupport(feet, support, kSupportMarginMm);
@@ -305,7 +320,7 @@ void GaitGenerator::enterGroundSearch(LegGaitState* state) {
 void GaitGenerator::finishSwingAtCurrentTarget(LegGaitState* state) {
     state->in_swing = false;
     state->touchdown_locked = true;
-    state->phase = LegPhase::Stance;
+    state->phase = LegPhase::LandedHold;
     state->swing_end_body_mm = state->target_body_mm;
 }
 
@@ -325,7 +340,10 @@ void GaitGenerator::requestStop(StopReason reason, LegId leg) {
     }
 }
 
-GaitOutput GaitGenerator::makeOutput(float cycle_hz, bool support_ok, bool waiting_for_support) const {
+GaitOutput GaitGenerator::makeOutput(float cycle_hz,
+                                     float command_level,
+                                     bool support_ok,
+                                     bool waiting_for_support) const {
     GaitOutput out;
     out.mode = mode_;
     out.fault = fault_;
@@ -334,6 +352,7 @@ GaitOutput GaitGenerator::makeOutput(float cycle_hz, bool support_ok, bool waiti
     out.stop_leg = stop_leg_;
     out.phase = phase_;
     out.cycle_hz = cycle_hz;
+    out.command_level = command_level;
     out.support_ok = support_ok;
     out.waiting_for_support = waiting_for_support;
     for (std::size_t i = 0; i < kLegCount; ++i) {

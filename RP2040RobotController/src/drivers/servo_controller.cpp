@@ -1,5 +1,7 @@
 #include "drivers/servo_controller.h"
 
+#include "config/servo_config.h"
+
 #if defined(PICO_ON_DEVICE)
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
@@ -123,6 +125,14 @@ bool ServoController::submitPulses(const std::array<std::uint16_t, kServoCount>&
 
     last_pulses_us_ = pulses_us;
     return true;
+}
+
+bool ServoController::submitJointTargets(const std::array<JointAngles, kLegCount>& joints) {
+    std::array<std::uint16_t, kServoCount> pulses{};
+    if (!mapRobotAnglesToPulses(joints, &pulses)) {
+        return false;
+    }
+    return submitPulses(pulses);
 }
 
 std::size_t ServoController::buildEventBuffer(const std::array<std::uint16_t, kServoCount>& pulses_us,

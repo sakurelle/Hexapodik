@@ -16,6 +16,7 @@ enum class LegPhase : std::uint8_t {
     Transfer,
     Descend,
     GroundSearch,
+    LandedHold,
 };
 
 struct LegGaitState {
@@ -41,6 +42,7 @@ struct GaitOutput {
     LegId stop_leg = LegId::Count;
     float phase = 0.0f;
     float cycle_hz = kMinCycleHz;
+    float command_level = 0.0f;
     bool support_ok = true;
     bool waiting_for_support = false;
     std::array<Vec3, kLegCount> feet_body_mm{};
@@ -78,7 +80,7 @@ private:
     void finishSwingAtCurrentTarget(LegGaitState* state);
     void finishOpenLoopSwing(LegId leg);
     void requestStop(StopReason reason, LegId leg);
-    GaitOutput makeOutput(float cycle_hz, bool support_ok, bool waiting_for_support) const;
+    GaitOutput makeOutput(float cycle_hz, float command_level, bool support_ok, bool waiting_for_support) const;
     void latchFault(FaultCode fault, LegId leg);
 
     std::array<Vec3, kLegCount> neutral_{};

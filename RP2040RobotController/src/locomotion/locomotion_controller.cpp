@@ -64,6 +64,10 @@ LocomotionStepResult LocomotionController::update(BodyCommand requested_command,
     result.stop_reason = accepted_output.stop_reason;
     result.stop_leg = accepted_output.stop_leg;
     result.phase = accepted_output.phase;
+    result.cycle_hz = accepted_output.cycle_hz;
+    result.command_level = accepted_output.command_level;
+    result.stride_x_mm = nominalStrideXMm(filtered_command_);
+    result.stride_y_mm = nominalStrideYMm(filtered_command_);
     result.workspace_scale = accepted_scale;
     result.ik_error_counter = ik_error_counter_;
     result.support_ok = accepted_output.support_ok;

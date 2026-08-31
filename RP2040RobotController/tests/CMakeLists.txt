@@ -7,8 +7,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(hexapod_core_host
+    ../src/command/uart_command_source.cpp
     ../src/config/robot_config.cpp
     ../src/config/servo_config.cpp
+    ../src/core/locomotion_system.cpp
+    ../src/diagnostics/telemetry.cpp
+    ../src/protocol/cobs.cpp
+    ../src/protocol/crc.cpp
+    ../src/protocol/protocol.cpp
     ../src/robot/kinematics.cpp
     ../src/robot/robot_geometry.cpp
     ../src/robot/workspace.cpp
@@ -19,6 +25,7 @@ add_library(hexapod_core_host
     ../src/drivers/servo_controller.cpp
     ../src/drivers/rc_input.cpp
     ../src/drivers/contact_sensors.cpp
+    ../src/drivers/uart_transport.cpp
 )
 
 target_include_directories(hexapod_core_host PUBLIC

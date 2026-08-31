@@ -18,6 +18,27 @@ inline float commandMagnitude(BodyCommand command) {
            std::fabs(command.yaw_rad_s) * 100.0f;
 }
 
+inline float commandLevel(BodyCommand command) {
+    const float vx_level = kMaxVxMmS > 0.0f ? std::fabs(command.vx_mm_s) / kMaxVxMmS : 0.0f;
+    const float vy_level = kMaxVyMmS > 0.0f ? std::fabs(command.vy_mm_s) / kMaxVyMmS : 0.0f;
+    const float yaw_level = kMaxYawRadS > 0.0f ? std::fabs(command.yaw_rad_s) / kMaxYawRadS : 0.0f;
+    return std::clamp(std::max({vx_level, vy_level, yaw_level}), 0.0f, 1.0f);
+}
+
+inline float cycleFrequencyHz(BodyCommand command) {
+    return kMinCycleHz + (kMaxCycleHz - kMinCycleHz) * commandLevel(command);
+}
+
+inline float nominalStrideXMm(BodyCommand command) {
+    const float cycle_hz = cycleFrequencyHz(command);
+    return cycle_hz > 0.0f ? std::fabs(command.vx_mm_s) * kStanceDuty / cycle_hz : 0.0f;
+}
+
+inline float nominalStrideYMm(BodyCommand command) {
+    const float cycle_hz = cycleFrequencyHz(command);
+    return cycle_hz > 0.0f ? std::fabs(command.vy_mm_s) * kStanceDuty / cycle_hz : 0.0f;
+}
+
 inline BodyCommand operator*(BodyCommand command, float scale) {
     return {command.vx_mm_s * scale, command.vy_mm_s * scale, command.yaw_rad_s * scale};
 }

@@ -16,6 +16,10 @@ struct LocomotionStepResult {
     StopReason stop_reason = StopReason::None;
     LegId stop_leg = LegId::Count;
     float phase = 0.0f;
+    float cycle_hz = kMinCycleHz;
+    float command_level = 0.0f;
+    float stride_x_mm = 0.0f;
+    float stride_y_mm = 0.0f;
     float workspace_scale = 1.0f;
     std::uint32_t ik_error_counter = 0;
     bool support_ok = true;

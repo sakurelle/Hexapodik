@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-#include "locomotion/body_command.h"
+#include "command/command_source.h"
 
 namespace hexapod {
 
@@ -14,17 +14,12 @@ struct RcInputSnapshot {
     bool failsafe = true;
 };
 
-class CommandSource {
-public:
-    virtual ~CommandSource() = default;
-    virtual BodyCommand readCommand(std::uint64_t now_us) = 0;
-};
-
-class RcInput : public CommandSource {
+class RcInput : public ICommandSource {
 public:
     void init();
     void onEdge(std::uint8_t gpio, bool rising, std::uint64_t now_us);
-    BodyCommand readCommand(std::uint64_t now_us) override;
+    MotionCommand readMotionCommand(std::uint64_t now_us) override;
+    BodyCommand readCommand(std::uint64_t now_us);
     RcInputSnapshot snapshot(std::uint64_t now_us) const;
     bool forwardFresh(std::uint64_t now_us) const;
     bool yawFresh(std::uint64_t now_us) const;

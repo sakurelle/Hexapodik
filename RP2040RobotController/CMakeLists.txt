@@ -28,8 +28,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 pico_sdk_init()
 
 add_library(hexapod_core
+    src/command/uart_command_source.cpp
     src/config/robot_config.cpp
     src/config/servo_config.cpp
+    src/core/locomotion_system.cpp
+    src/diagnostics/telemetry.cpp
+    src/protocol/cobs.cpp
+    src/protocol/crc.cpp
+    src/protocol/protocol.cpp
     src/robot/kinematics.cpp
     src/robot/robot_geometry.cpp
     src/robot/workspace.cpp
@@ -56,6 +62,7 @@ add_executable(RP2040RobotController
     src/drivers/servo_controller.cpp
     src/drivers/rc_input.cpp
     src/drivers/contact_sensors.cpp
+    src/drivers/uart_transport.cpp
 )
 
 pico_generate_pio_header(RP2040RobotController
@@ -71,6 +78,7 @@ target_link_libraries(RP2040RobotController PRIVATE
     hardware_irq
     hardware_pio
     hardware_sync
+    hardware_uart
 )
 
 target_compile_options(RP2040RobotController PRIVATE

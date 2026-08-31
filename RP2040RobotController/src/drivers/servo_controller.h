@@ -4,10 +4,11 @@
 #include <cstdint>
 
 #include "config/robot_config.h"
+#include "core/hardware_interfaces.h"
 
 namespace hexapod {
 
-class ServoController {
+class ServoController : public IServoOutput {
 public:
     struct Event {
         std::uint32_t mask = 0;
@@ -21,6 +22,7 @@ public:
 
     bool init();
     bool submitPulses(const std::array<std::uint16_t, kServoCount>& pulses_us);
+    bool submitJointTargets(const std::array<JointAngles, kLegCount>& joints) override;
     const std::array<std::uint16_t, kServoCount>& lastPulses() const { return last_pulses_us_; }
 
     static std::size_t buildEventBuffer(const std::array<std::uint16_t, kServoCount>& pulses_us,

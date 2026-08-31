@@ -46,12 +46,26 @@ void RcInput::onEdge(std::uint8_t gpio, bool rising, std::uint64_t now_us) {
     }
 }
 
-BodyCommand RcInput::readCommand(std::uint64_t now_us) {
+MotionCommand RcInput::readMotionCommand(std::uint64_t now_us) {
     const RcInputSnapshot rc = snapshot(now_us);
     if (rc.failsafe) {
         return {};
     }
-    return {normalize(rc.forward_pulse_us) * kMaxVxMmS, 0.0f, normalize(rc.yaw_pulse_us) * kMaxYawRadS};
+    return {
+        normalize(rc.forward_pulse_us) * kMaxVxMmS * 0.001f,
+        0.0f,
+        normalize(rc.yaw_pulse_us) * kMaxYawRadS,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        static_cast<std::uint32_t>((last_forward_us_ ^ last_yaw_us_) & 0xFFFFFFFFu),
+        true,
+    };
+}
+
+BodyCommand RcInput::readCommand(std::uint64_t now_us) {
+    return toBodyCommandMm(readMotionCommand(now_us));
 }
 
 RcInputSnapshot RcInput::snapshot(std::uint64_t now_us) const {

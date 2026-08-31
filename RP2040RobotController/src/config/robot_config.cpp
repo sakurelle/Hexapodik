@@ -18,10 +18,11 @@ const char* legName(LegId leg) {
 const char* faultName(FaultCode fault) {
     switch (fault) {
         case FaultCode::None: return "NONE";
-        case FaultCode::NoGround: return "FAULT_NO_GROUND";
-        case FaultCode::ContactStuck: return "FAULT_CONTACT_STUCK";
         case FaultCode::IkInvalid: return "FAULT_IK_INVALID";
-        case FaultCode::SupportLost: return "FAULT_SUPPORT_LOST";
+        case FaultCode::WorkspaceInvalid: return "FAULT_WORKSPACE_INVALID";
+        case FaultCode::InternalState: return "FAULT_INTERNAL_STATE";
+        case FaultCode::ServoOutput: return "FAULT_SERVO_OUTPUT";
+        case FaultCode::PioDmaFatal: return "FAULT_PIO_DMA_FATAL";
     }
     return "FAULT_UNKNOWN";
 }
@@ -49,9 +50,11 @@ const char* stopReasonName(StopReason reason) {
     switch (reason) {
         case StopReason::None: return "NONE";
         case StopReason::SensorStuckHigh: return "SENSOR_STUCK_HIGH";
+        case StopReason::SensorStuckLow: return "SENSOR_STUCK_LOW";
         case StopReason::NoGround: return "NO_GROUND";
         case StopReason::EarlyCollision: return "EARLY_COLLISION";
         case StopReason::SupportLost: return "SUPPORT_LOST";
+        case StopReason::CommandTimeout: return "COMMAND_TIMEOUT";
     }
     return "?";
 }
@@ -62,6 +65,61 @@ const char* sensorHealthName(SensorHealth health) {
         case SensorHealth::SuspectStuckHigh: return "SUSPECT_STUCK_HIGH";
         case SensorHealth::SuspectStuckLow: return "SUSPECT_STUCK_LOW";
         case SensorHealth::Unhealthy: return "UNHEALTHY";
+    }
+    return "?";
+}
+
+const char* robotStateName(RobotState state) {
+    switch (state) {
+        case RobotState::Disabled: return "DISABLED";
+        case RobotState::Standing: return "STANDING";
+        case RobotState::Walking: return "WALKING";
+        case RobotState::Stopping: return "STOPPING";
+        case RobotState::Recovery: return "RECOVERY";
+        case RobotState::Fault: return "FAULT";
+    }
+    return "?";
+}
+
+const char* blockReasonName(BlockReason reason) {
+    switch (reason) {
+        case BlockReason::None: return "NONE";
+        case BlockReason::CommandTimeout: return "COMMAND_TIMEOUT";
+        case BlockReason::ZeroCommand: return "ZERO_COMMAND";
+        case BlockReason::LandingWait: return "LANDING_WAIT";
+        case BlockReason::GroundSearch: return "GROUND_SEARCH";
+        case BlockReason::Recovery: return "RECOVERY";
+        case BlockReason::IkInvalid: return "IK_INVALID";
+        case BlockReason::WorkspaceInvalid: return "WORKSPACE_INVALID";
+        case BlockReason::HardFault: return "HARD_FAULT";
+    }
+    return "?";
+}
+
+const char* recoveryReasonName(RecoveryReason reason) {
+    switch (reason) {
+        case RecoveryReason::None: return "NONE";
+        case RecoveryReason::NoGround: return "NO_GROUND";
+        case RecoveryReason::SensorStuckHigh: return "SENSOR_STUCK_HIGH";
+        case RecoveryReason::SensorStuckLow: return "SENSOR_STUCK_LOW";
+        case RecoveryReason::EarlyCollision: return "EARLY_COLLISION";
+        case RecoveryReason::CommandTimeout: return "COMMAND_TIMEOUT";
+    }
+    return "?";
+}
+
+const char* commandSourceModeName(CommandSourceMode mode) {
+    switch (mode) {
+        case CommandSourceMode::RcPwm: return "RC";
+        case CommandSourceMode::Uart: return "UART";
+    }
+    return "?";
+}
+
+const char* controlModeName(ControlMode mode) {
+    switch (mode) {
+        case ControlMode::Locomotion: return "LOCOMOTION";
+        case ControlMode::DirectJoint: return "DIRECT_JOINT";
     }
     return "?";
 }
