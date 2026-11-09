@@ -1,7 +1,5 @@
-*.stp
-*.step
 *.bak
 *.m3~
 *.a3~
-*.3mf
-*.zip
+**/History/**/*.Zip
+**/__Previews/

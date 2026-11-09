@@ -1,0 +1,46 @@
+Removed Pin From Net: NetName=VBAT Pin=X8-1
+Removed Pin From Net: NetName=GND Pin=X8-2
+Added Pin To Net: NetName=VBAT Pin=C9-2
+Added Pin To Net: NetName=VBAT Pin=C21-2
+Added Pin To Net: NetName=VBAT Pin=C32-2
+Added Pin To Net: NetName=VBAT Pin=C33-2
+Added Pin To Net: NetName=VBAT Pin=C45-2
+Add Pin To Net: Unknown Pin: Pin DD1-1
+Add Pin To Net: Unknown Pin: Pin DD1-2
+Add Pin To Net: Unknown Pin: Pin DD1-3
+Add Pin To Net: Unknown Pin: Pin DD1-4
+Add Pin To Net: Unknown Pin: Pin DD1-5
+Add Pin To Net: Unknown Pin: Pin DD1-6
+Add Pin To Net: Unknown Pin: Pin DD1-7
+Add Pin To Net: Unknown Pin: Pin DD1-8
+Add Pin To Net: Unknown Pin: Pin DD1-9
+Add Pin To Net: Unknown Pin: Pin DD1-10
+Add Pin To Net: Unknown Pin: Pin DD1-11
+Add Pin To Net: Unknown Pin: Pin DD1-12
+Add Pin To Net: Unknown Pin: Pin DD1-13
+Add Pin To Net: Unknown Pin: Pin DD1-14
+Add Pin To Net: Unknown Pin: Pin DD1-15
+Add Pin To Net: Unknown Pin: Pin DD1-16
+Add Pin To Net: Unknown Pin: Pin DD1-17
+Add Pin To Net: Unknown Pin: Pin DD1-18
+Add Pin To Net: Unknown Pin: Pin DD1-19
+Add Pin To Net: Unknown Pin: Pin DD1-20
+Add Pin To Net: Unknown Pin: Pin DD1-21
+Add Pin To Net: Unknown Pin: Pin DD1-22
+Add Pin To Net: Unknown Pin: Pin DD1-23
+Add Pin To Net: Unknown Pin: Pin DD1-24
+Add Pin To Net: Unknown Pin: Pin DD1-25
+Add Pin To Net: Unknown Pin: Pin DD1-26
+Add Pin To Net: Unknown Pin: Pin DD1-27
+Add Pin To Net: Unknown Pin: Pin DD1-28
+Add Pin To Net: Unknown Pin: Pin DD1-29
+Add Pin To Net: Unknown Pin: Pin DD1-31
+Add Pin To Net: Unknown Pin: Pin DD1-32
+Add Pin To Net: Unknown Pin: Pin DD1-33
+Add Pin To Net: Unknown Pin: Pin DD1-34
+Add Pin To Net: Unknown Pin: Pin DD1-36
+Add Pin To Net: Unknown Pin: Pin DD1-38
+Add Pin To Net: Unknown Pin: Pin DD1-39
+Added Pin To Net: NetName=GND Pin=X8-1
+Added Pin To Net: NetName=VBAT Pin=X8-2
+Add Class Member: Failed to add class member : Component DD1 RP2040

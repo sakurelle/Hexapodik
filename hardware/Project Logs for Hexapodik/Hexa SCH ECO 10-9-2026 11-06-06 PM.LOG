@@ -1,0 +1,107 @@
+Change Component Footprint: Designator=C42 Old Footprint=CAP: 0603 New Footprint=CAP: 1206
+Change Component Footprint: Designator=C54 Old Footprint=CAP: 0603 New Footprint=CAP: 1206
+Change Component Footprint: Designator=C57 Old Footprint=CAP: 0603 New Footprint=CAP: 1206
+Change Component Footprint: Designator=C9 Old Footprint=CAP: 0603 New Footprint=CAP: SMD_L7.3-W4.3-H1.9
+Change Component Footprint: Designator=C45 Old Footprint=CAP: 0603 New Footprint=CAP: SMD_L7.3-W4.3-H1.9
+Change Component Footprint: Designator=C8 Old Footprint=CAP: 1206 New Footprint=CAP: 0603
+Change Component Footprint: Designator=C10 Old Footprint=CAP: 1206 New Footprint=CAP: 0603
+Change Component Footprint: Designator=C15 Old Footprint=CAP: 1206 New Footprint=CAP: 0603
+Change Component Footprint: Designator=C22 Old Footprint=CAP: 1206 New Footprint=CAP: 0603
+Change Component Footprint: Designator=C27 Old Footprint=CAP: 1206 New Footprint=CAP: 0603
+Change Component Footprint: Designator=C34 Old Footprint=CAP: 1206 New Footprint=CAP: 0603
+Change Component Footprint: Designator=C37 Old Footprint=CAP: 1206 New Footprint=CAP: 0603
+Change Component Footprint: Designator=C38 Old Footprint=CAP: 1206 New Footprint=CAP: 0603
+Change Component Footprint: Designator=C41 Old Footprint=CAP: 1206 New Footprint=CAP: 0603
+Change Component Footprint: Designator=C44 Old Footprint=CAP: 1206 New Footprint=CAP: 0603
+Change Component Footprint: Designator=C51 Old Footprint=CAP: 1206 New Footprint=CAP: 0603
+Change Component Footprint: Designator=C52 Old Footprint=CAP: 1206 New Footprint=CAP: 0603
+Change Component Footprint: Designator=C55 Old Footprint=CAP: 1206 New Footprint=CAP: 0603
+Change Component Footprint: Designator=C58 Old Footprint=CAP: 1206 New Footprint=CAP: 0603
+Change Component Footprint: Designator=C19 Old Footprint=CAP: 1206 New Footprint=CAP: SMD_L7.3-W4.3-H1.9
+Change Component Footprint: Designator=C31 Old Footprint=CAP: 1206 New Footprint=CAP: SMD_L7.3-W4.3-H1.9
+Change Component Footprint: Designator=C32 Old Footprint=CAP: 1206 New Footprint=CAP: SMD_L7.3-W4.3-H1.9
+Change Component Footprint: Designator=C46 Old Footprint=CAP: 1206 New Footprint=CAP: SMD_L7.3-W4.3-H1.9
+Change Component Footprint: Designator=L1 Old Footprint=IND: SMD,6.6x7.3mm New Footprint=IND: SMD_L2.5-W2.0
+Change Component Footprint: Designator=L2 Old Footprint=IND: SMD,6.6x7.3mm New Footprint=IND: SMD_L2.5-W2.0
+Change Component Footprint: Designator=L3 Old Footprint=IND: SMD,6.6x7.3mm New Footprint=IND: SMD_L2.5-W2.0
+Change Component Footprint: Designator=L4 Old Footprint=IND: SMD,6.6x7.3mm New Footprint=IND: SMD_L2.5-W2.0
+Change Component Footprint: Designator=L5 Old Footprint=IND: SMD,6.6x7.3mm New Footprint=IND: SMD_L2.5-W2.0
+Change Component Footprint: Designator=L6 Old Footprint=IND: SMD,6.6x7.3mm New Footprint=IND: SMD_L2.5-W2.0
+Change Component Footprint: Designator=L7 Old Footprint=IND: SMD,6.6x7.3mm New Footprint=IND: SMD_L2.5-W2.0
+Change Component Footprint: Designator=L8 Old Footprint=IND: SMD,6.6x7.3mm New Footprint=IND: SMD_L2.5-W2.0
+Change Component Footprint: Designator=L9 Old Footprint=IND: SMD,6.6x7.3mm New Footprint=IND: SMD_L2.5-W2.0
+Change Component Comment: Designator=C5 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C11 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C12 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C23 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C24 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C42 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Change Component Comment: Designator=C54 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Change Component Comment: Designator=C57 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Change Component Comment: Designator=C9 Old Comment==ValueManufacturerPartNumber New Comment=Polymer Cap, 220uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Change Component Comment: Designator=C45 Old Comment==ValueManufacturerPartNumber New Comment=Polymer Cap, 330uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Change Component Comment: Designator=C8 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C15 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C27 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C41 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C44 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C37 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C51 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C6 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 4,7uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Change Component Comment: Designator=C32 Old Comment==ValueManufacturerPartNumber New Comment=Polymer Cap, 330uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Change Component Comment: Designator=C10 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C22 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C34 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C55 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C58 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C38 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C52 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Change Component Comment: Designator=C7 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 4,7uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Change Component Comment: Designator=C14 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Change Component Comment: Designator=C16 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Change Component Comment: Designator=C26 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Change Component Comment: Designator=C28 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Change Component Comment: Designator=C40 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Change Component Comment: Designator=C43 Old Comment==ValueManufacturerPartNumber New Comment=Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Change Component Comment: Designator=C19 Old Comment==ValueManufacturerPartNumber New Comment=Polymer Cap, 330uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Change Component Comment: Designator=C31 Old Comment==ValueManufacturerPartNumber New Comment=Polymer Cap, 330uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Change Component Comment: Designator=C46 Old Comment==ValueManufacturerPartNumber New Comment=Polymer Cap, 330uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Change Component Comment: Designator=L2 Old Comment==ValueManufacturerPartNumber New Comment=Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Change Component Comment: Designator=L3 Old Comment==ValueManufacturerPartNumber New Comment=Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Change Component Comment: Designator=L4 Old Comment==ValueManufacturerPartNumber New Comment=Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Change Component Comment: Designator=L5 Old Comment==ValueManufacturerPartNumber New Comment=Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Change Component Comment: Designator=L6 Old Comment==ValueManufacturerPartNumber New Comment=Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Change Component Comment: Designator=L7 Old Comment==ValueManufacturerPartNumber New Comment=Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Change Component Comment: Designator=L8 Old Comment==ValueManufacturerPartNumber New Comment=Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Change Component Comment: Designator=L9 Old Comment==ValueManufacturerPartNumber New Comment=Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Change Component Comment: Designator=L1 Old Comment==ValueManufacturerPartNumber New Comment=Fixed inductor, 22uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Change Component Comment: Designator=R37 Old Comment==ValueManufacturerPartNumber New Comment=Resistor film, 2,55k, ±5%, 0603, 0.1W, -55...+125°C
+Change Component Comment: Designator=R38 Old Comment==ValueManufacturerPartNumber New Comment=Resistor film, 2,55k, ±5%, 0603, 0.1W, -55...+125°C
+Change Component Comment: Designator=R47 Old Comment==ValueManufacturerPartNumber New Comment=Resistor film, 2,55k, ±5%, 0603, 0.1W, -55...+125°C
+Change Component Comment: Designator=R48 Old Comment==ValueManufacturerPartNumber New Comment=Resistor film, 2,55k, ±5%, 0603, 0.1W, -55...+125°C
+Change Component Comment: Designator=R19 Old Comment==ValueManufacturerPartNumber New Comment=Resistor film, 3,24k, ±5%, 0603, 0.1W, -55...+125°C
+Change Component Comment: Designator=R16 Old Comment==ValueManufacturerPartNumber New Comment=Resistor film, 3,24k, ±5%, 0603, 0.1W, -55...+125°C
+Change Component Comment: Designator=R20 Old Comment==ValueManufacturerPartNumber New Comment=Resistor film, 3,24k, ±5%, 0603, 0.1W, -55...+125°C
+Change Component Comment: Designator=R27 Old Comment==ValueManufacturerPartNumber New Comment=Resistor film, 2,55k, ±5%, 0603, 0.1W, -55...+125°C
+Change Component Comment: Designator=R28 Old Comment==ValueManufacturerPartNumber New Comment=Resistor film, 2,55k, ±5%, 0603, 0.1W, -55...+125°C
+Change Component Comment: Designator=R45 Old Comment==ValueManufacturerPartNumber New Comment=Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Change Component Comment: Designator=R46 Old Comment==ValueManufacturerPartNumber New Comment=Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Change Pin Designator/Name:  Old Designator=C9-1 Old Name=1 New Designator =2 New Name=2
+Change Pin Designator/Name:  Old Designator=C10-1 Old Name=1 New Designator =2 New Name=2
+Change Pin Designator/Name:  Old Designator=C10-2 Old Name=2 New Designator =1 New Name=1
+Change Pin Designator/Name:  Old Designator=C19-1 Old Name=1 New Designator =2 New Name=2
+Change Pin Designator/Name:  Old Designator=C19-2 Old Name=2 New Designator =1 New Name=1
+Change Pin Designator/Name:  Old Designator=C21-1 Old Name=1 New Designator =2 New Name=2
+Change Pin Designator/Name:  Old Designator=C22-1 Old Name=1 New Designator =2 New Name=2
+Change Pin Designator/Name:  Old Designator=C22-2 Old Name=2 New Designator =1 New Name=1
+Change Pin Designator/Name:  Old Designator=C31-1 Old Name=1 New Designator =2 New Name=2
+Change Pin Designator/Name:  Old Designator=C31-2 Old Name=2 New Designator =1 New Name=1
+Change Pin Designator/Name:  Old Designator=C32-1 Old Name=1 New Designator =2 New Name=2
+Change Pin Designator/Name:  Old Designator=C33-1 Old Name=1 New Designator =2 New Name=2
+Change Pin Designator/Name:  Old Designator=C34-1 Old Name=1 New Designator =2 New Name=2
+Change Pin Designator/Name:  Old Designator=C34-2 Old Name=2 New Designator =1 New Name=1
+Change Pin Designator/Name:  Old Designator=C45-1 Old Name=1 New Designator =2 New Name=2
+Change Pin Designator/Name:  Old Designator=C46-1 Old Name=1 New Designator =2 New Name=2
+Change Pin Designator/Name:  Old Designator=C46-2 Old Name=2 New Designator =1 New Name=1
+Change Pin Designator/Name:  Old Designator=R47-2 Old Name=2 New Designator =1 New Name=1
+Change Pin Designator/Name:  Old Designator=R48-2 Old Name=2 New Designator =1 New Name=1

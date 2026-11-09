@@ -1,0 +1,141 @@
+Change component parameters: Designator = "L1" ("L1"); Footprint = "IND: SMD_L2.5-W2.0"; UniqueID = "\BNSKQQJS" ("\BNSKQQJS")
+Change component parameters (AddParameter): Name = "HelpURL"; Value = "https://jlcpcb.com/partdetail/6763511-FTC252010S220MBCA/C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "Sunlord"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "MaxCurrent"; Value = "1.1A"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Package"; Value = "SMD,2x2.5mm"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "PartNumber"; Value = "FTC252010S220MBCA"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "SupplierCode"; Value = "C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "±20%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "TypeInductor"; Value = "Fixed inductor"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "3.3uH"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "ValueManufacturerPartNumber"; Value = "Fixed inductor, 3.3uH, ±20%, SMD,2x2.5mm, 1.1A, "; VariantName = "[No Variations]"
+Change component parameters: Designator = "L2" ("L2"); Footprint = "IND: SMD_L2.5-W2.0"; UniqueID = "\PWLLIORF" ("\PWLLIORF")
+Change component parameters (AddParameter): Name = "HelpURL"; Value = "https://jlcpcb.com/partdetail/6763511-FTC252010S220MBCA/C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "Sunlord"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "MaxCurrent"; Value = "1.1A"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Package"; Value = "SMD,2x2.5mm"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "PartNumber"; Value = "FTC252010S220MBCA"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "SupplierCode"; Value = "C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "±20%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "TypeInductor"; Value = "Fixed inductor"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "3.3uH"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "ValueManufacturerPartNumber"; Value = "Fixed inductor, 3.3uH, ±20%, SMD,2x2.5mm, 1.1A, "; VariantName = "[No Variations]"
+Change component parameters: Designator = "L3" ("L3"); Footprint = "IND: SMD_L2.5-W2.0"; UniqueID = "\IBUCTCXH" ("\IBUCTCXH")
+Change component parameters (AddParameter): Name = "HelpURL"; Value = "https://jlcpcb.com/partdetail/6763511-FTC252010S220MBCA/C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "Sunlord"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "MaxCurrent"; Value = "1.1A"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Package"; Value = "SMD,2x2.5mm"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "PartNumber"; Value = "FTC252010S220MBCA"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "SupplierCode"; Value = "C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "±20%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "TypeInductor"; Value = "Fixed inductor"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "3.3uH"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "ValueManufacturerPartNumber"; Value = "Fixed inductor, 3.3uH, ±20%, SMD,2x2.5mm, 1.1A, "; VariantName = "[No Variations]"
+Change component parameters: Designator = "L4" ("L4"); Footprint = "IND: SMD_L2.5-W2.0"; UniqueID = "\ZKHQXWWZ" ("\ZKHQXWWZ")
+Change component parameters (AddParameter): Name = "HelpURL"; Value = "https://jlcpcb.com/partdetail/6763511-FTC252010S220MBCA/C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "Sunlord"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "MaxCurrent"; Value = "1.1A"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Package"; Value = "SMD,2x2.5mm"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "PartNumber"; Value = "FTC252010S220MBCA"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "SupplierCode"; Value = "C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "±20%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "TypeInductor"; Value = "Fixed inductor"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "3.3uH"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "ValueManufacturerPartNumber"; Value = "Fixed inductor, 3.3uH, ±20%, SMD,2x2.5mm, 1.1A, "; VariantName = "[No Variations]"
+Change component parameters: Designator = "L5" ("L5"); Footprint = "IND: SMD_L2.5-W2.0"; UniqueID = "\ZZEPSWLF" ("\ZZEPSWLF")
+Change component parameters (AddParameter): Name = "HelpURL"; Value = "https://jlcpcb.com/partdetail/6763511-FTC252010S220MBCA/C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "Sunlord"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "MaxCurrent"; Value = "1.1A"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Package"; Value = "SMD,2x2.5mm"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "PartNumber"; Value = "FTC252010S220MBCA"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "SupplierCode"; Value = "C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "±20%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "TypeInductor"; Value = "Fixed inductor"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "3.3uH"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "ValueManufacturerPartNumber"; Value = "Fixed inductor, 3.3uH, ±20%, SMD,2x2.5mm, 1.1A, "; VariantName = "[No Variations]"
+Change component parameters: Designator = "L6" ("L6"); Footprint = "IND: SMD_L2.5-W2.0"; UniqueID = "\LUNUCBVE" ("\LUNUCBVE")
+Change component parameters (AddParameter): Name = "HelpURL"; Value = "https://jlcpcb.com/partdetail/6763511-FTC252010S220MBCA/C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "Sunlord"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "MaxCurrent"; Value = "1.1A"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Package"; Value = "SMD,2x2.5mm"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "PartNumber"; Value = "FTC252010S220MBCA"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "SupplierCode"; Value = "C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "±20%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "TypeInductor"; Value = "Fixed inductor"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "3.3uH"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "ValueManufacturerPartNumber"; Value = "Fixed inductor, 3.3uH, ±20%, SMD,2x2.5mm, 1.1A, "; VariantName = "[No Variations]"
+Change component parameters: Designator = "L7" ("L7"); Footprint = "IND: SMD_L2.5-W2.0"; UniqueID = "\IRCAIRWZ" ("\IRCAIRWZ")
+Change component parameters (AddParameter): Name = "HelpURL"; Value = "https://jlcpcb.com/partdetail/6763511-FTC252010S220MBCA/C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "Sunlord"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "MaxCurrent"; Value = "1.1A"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Package"; Value = "SMD,2x2.5mm"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "PartNumber"; Value = "FTC252010S220MBCA"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "SupplierCode"; Value = "C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "±20%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "TypeInductor"; Value = "Fixed inductor"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "3.3uH"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "ValueManufacturerPartNumber"; Value = "Fixed inductor, 3.3uH, ±20%, SMD,2x2.5mm, 1.1A, "; VariantName = "[No Variations]"
+Change component parameters: Designator = "L8" ("L8"); Footprint = "IND: SMD_L2.5-W2.0"; UniqueID = "\DYCIBZKR" ("\DYCIBZKR")
+Change component parameters (AddParameter): Name = "HelpURL"; Value = "https://jlcpcb.com/partdetail/6763511-FTC252010S220MBCA/C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "Sunlord"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "MaxCurrent"; Value = "1.1A"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Package"; Value = "SMD,2x2.5mm"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "PartNumber"; Value = "FTC252010S220MBCA"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "SupplierCode"; Value = "C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "±20%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "TypeInductor"; Value = "Fixed inductor"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "3.3uH"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "ValueManufacturerPartNumber"; Value = "Fixed inductor, 3.3uH, ±20%, SMD,2x2.5mm, 1.1A, "; VariantName = "[No Variations]"
+Change component parameters: Designator = "L9" ("L9"); Footprint = "IND: SMD_L2.5-W2.0"; UniqueID = "\RCQXSWAN" ("\RCQXSWAN")
+Change component parameters (AddParameter): Name = "HelpURL"; Value = "https://jlcpcb.com/partdetail/6763511-FTC252010S220MBCA/C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "Sunlord"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "MaxCurrent"; Value = "1.1A"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Package"; Value = "SMD,2x2.5mm"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "PartNumber"; Value = "FTC252010S220MBCA"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "SupplierCode"; Value = "C5832391"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "±20%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "TypeInductor"; Value = "Fixed inductor"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "3.3uH"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "ValueManufacturerPartNumber"; Value = "Fixed inductor, 3.3uH, ±20%, SMD,2x2.5mm, 1.1A, "; VariantName = "[No Variations]"
+Added Pin To Net: NetName=VBAT Pin=C9-2
+Added Pin To Net: NetName=VBAT Pin=C21-2
+Added Pin To Net: NetName=VBAT Pin=C32-2
+Added Pin To Net: NetName=VBAT Pin=C33-2
+Added Pin To Net: NetName=VBAT Pin=C45-2
+Add Pin To Net: Unknown Pin: Pin DD1-1
+Add Pin To Net: Unknown Pin: Pin DD1-2
+Add Pin To Net: Unknown Pin: Pin DD1-3
+Add Pin To Net: Unknown Pin: Pin DD1-4
+Add Pin To Net: Unknown Pin: Pin DD1-5
+Add Pin To Net: Unknown Pin: Pin DD1-6
+Add Pin To Net: Unknown Pin: Pin DD1-7
+Add Pin To Net: Unknown Pin: Pin DD1-8
+Add Pin To Net: Unknown Pin: Pin DD1-9
+Add Pin To Net: Unknown Pin: Pin DD1-10
+Add Pin To Net: Unknown Pin: Pin DD1-11
+Add Pin To Net: Unknown Pin: Pin DD1-12
+Add Pin To Net: Unknown Pin: Pin DD1-13
+Add Pin To Net: Unknown Pin: Pin DD1-14
+Add Pin To Net: Unknown Pin: Pin DD1-15
+Add Pin To Net: Unknown Pin: Pin DD1-16
+Add Pin To Net: Unknown Pin: Pin DD1-17
+Add Pin To Net: Unknown Pin: Pin DD1-18
+Add Pin To Net: Unknown Pin: Pin DD1-19
+Add Pin To Net: Unknown Pin: Pin DD1-20
+Add Pin To Net: Unknown Pin: Pin DD1-21
+Add Pin To Net: Unknown Pin: Pin DD1-22
+Add Pin To Net: Unknown Pin: Pin DD1-23
+Add Pin To Net: Unknown Pin: Pin DD1-24
+Add Pin To Net: Unknown Pin: Pin DD1-25
+Add Pin To Net: Unknown Pin: Pin DD1-26
+Add Pin To Net: Unknown Pin: Pin DD1-27
+Add Pin To Net: Unknown Pin: Pin DD1-28
+Add Pin To Net: Unknown Pin: Pin DD1-29
+Add Pin To Net: Unknown Pin: Pin DD1-31
+Add Pin To Net: Unknown Pin: Pin DD1-32
+Add Pin To Net: Unknown Pin: Pin DD1-33
+Add Pin To Net: Unknown Pin: Pin DD1-34
+Add Pin To Net: Unknown Pin: Pin DD1-36
+Add Pin To Net: Unknown Pin: Pin DD1-38
+Add Pin To Net: Unknown Pin: Pin DD1-39
+Add Class Member: Failed to add class member : Component DD1 RP2040

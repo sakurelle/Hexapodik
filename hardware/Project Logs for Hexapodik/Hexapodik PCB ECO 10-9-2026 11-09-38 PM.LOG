@@ -1,0 +1,213 @@
+Added Pin To Net: NetName=GND Pin=C9-2
+Added Pin To Net: NetName=GND Pin=C21-2
+Added Pin To Net: NetName=GND Pin=C32-2
+Added Pin To Net: NetName=GND Pin=C33-2
+Added Pin To Net: NetName=GND Pin=C45-2
+Add Pin To Net: Unknown Pin: Pin DD1-1
+Add Pin To Net: Unknown Pin: Pin DD1-2
+Add Pin To Net: Unknown Pin: Pin DD1-3
+Add Pin To Net: Unknown Pin: Pin DD1-4
+Add Pin To Net: Unknown Pin: Pin DD1-5
+Add Pin To Net: Unknown Pin: Pin DD1-6
+Add Pin To Net: Unknown Pin: Pin DD1-7
+Add Pin To Net: Unknown Pin: Pin DD1-8
+Add Pin To Net: Unknown Pin: Pin DD1-9
+Add Pin To Net: Unknown Pin: Pin DD1-10
+Add Pin To Net: Unknown Pin: Pin DD1-11
+Add Pin To Net: Unknown Pin: Pin DD1-12
+Add Pin To Net: Unknown Pin: Pin DD1-13
+Add Pin To Net: Unknown Pin: Pin DD1-14
+Add Pin To Net: Unknown Pin: Pin DD1-15
+Add Pin To Net: Unknown Pin: Pin DD1-16
+Add Pin To Net: Unknown Pin: Pin DD1-17
+Add Pin To Net: Unknown Pin: Pin DD1-18
+Add Pin To Net: Unknown Pin: Pin DD1-19
+Add Pin To Net: Unknown Pin: Pin DD1-20
+Add Pin To Net: Unknown Pin: Pin DD1-21
+Add Pin To Net: Unknown Pin: Pin DD1-22
+Add Pin To Net: Unknown Pin: Pin DD1-23
+Add Pin To Net: Unknown Pin: Pin DD1-24
+Add Pin To Net: Unknown Pin: Pin DD1-25
+Add Pin To Net: Unknown Pin: Pin DD1-26
+Add Pin To Net: Unknown Pin: Pin DD1-27
+Add Pin To Net: Unknown Pin: Pin DD1-28
+Add Pin To Net: Unknown Pin: Pin DD1-29
+Add Pin To Net: Unknown Pin: Pin DD1-31
+Add Pin To Net: Unknown Pin: Pin DD1-32
+Add Pin To Net: Unknown Pin: Pin DD1-33
+Add Pin To Net: Unknown Pin: Pin DD1-34
+Add Pin To Net: Unknown Pin: Pin DD1-36
+Add Pin To Net: Unknown Pin: Pin DD1-38
+Add Pin To Net: Unknown Pin: Pin DD1-39
+Added Pin To Net: NetName=GND Pin=R47-1
+Added Pin To Net: NetName=GND Pin=R48-1
+Added Member To Class: ClassName=Hexa Member=Component C1 Polymer Cap, 220uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C2 Polymer Cap, 470uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C3 Polymer Cap, 470uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C4 Polymer Cap, 100uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C5 Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C6 Ceramic capacitor, 4,7uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C7 Ceramic capacitor, 4,7uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C8 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C9 Polymer Cap, 220uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C10 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C11 Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C12 Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C13 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C14 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C15 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C16 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C17 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C18 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C19 Polymer Cap, 330uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C20 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C21 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component C22 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C23 Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C24 Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C25 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C26 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C27 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C28 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C29 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C30 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C31 Polymer Cap, 330uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C32 Polymer Cap, 330uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C33 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C34 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C35 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C36 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C37 Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C38 Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C39 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C40 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C41 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C42 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C43 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C44 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C45 Polymer Cap, 330uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C46 Polymer Cap, 330uF, 35V, ±20%, 40mOhm@100kHz, SMD,7.3x4.3?1.9mm, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C47 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C48 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C49 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C50 Ceramic capacitor, 22uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C51 Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C52 Ceramic capacitor, 0.01uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C53 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C54 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C55 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C56 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C57 Ceramic capacitor, 10uF, X7R, ±10%, 50V, 1206, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component C58 Ceramic capacitor, 0.1uF, X7R, ±10%, 16V, 0603, -55...+125°C
+Add Class Member: Failed to add class member : Component DD1 RP2040
+Added Member To Class: ClassName=Hexa Member=Component DD2 RPi
+Added Member To Class: ClassName=Hexa Member=Component DD3 TPS565201
+Added Member To Class: ClassName=Hexa Member=Component DD4 TPS565201
+Added Member To Class: ClassName=PowerLegs Member=Component DD5 TPS565201
+Added Member To Class: ClassName=PowerLegs Member=Component DD6 TPS565201
+Added Member To Class: ClassName=PowerLegs Member=Component DD7 TPS565201
+Added Member To Class: ClassName=PowerLegs Member=Component DD8 TPS565201
+Added Member To Class: ClassName=PowerLegs Member=Component DD9 TPS565201
+Added Member To Class: ClassName=PowerLegs Member=Component DD10 TPS565201
+Added Member To Class: ClassName=Hexa Member=Component DD11 TPS565201
+Added Member To Class: ClassName=Hexa Member=Component L1 Fixed inductor, 22uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Added Member To Class: ClassName=Hexa Member=Component L2 Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Added Member To Class: ClassName=Hexa Member=Component L3 Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Added Member To Class: ClassName=PowerLegs Member=Component L4 Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Added Member To Class: ClassName=PowerLegs Member=Component L5 Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Added Member To Class: ClassName=PowerLegs Member=Component L6 Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Added Member To Class: ClassName=PowerLegs Member=Component L7 Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Added Member To Class: ClassName=PowerLegs Member=Component L8 Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Added Member To Class: ClassName=PowerLegs Member=Component L9 Fixed inductor, 15uH, ±20%, SMD,2x2.5mm, 1.1A, 
+Added Member To Class: ClassName=Hexa Member=Component R1 Resistor film, 4.7k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R2 Resistor film, 4.7k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R3 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R4 Resistor film, 1k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R5 Resistor film, 1k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R6 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R7 Resistor film, 4.7k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R8 Resistor film, 4.7k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R9 Resistor film, 1k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R10 Resistor film, 1k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R11 Resistor film, 4.7k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R12 Resistor film, 1k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R13 Resistor film, 4.7k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R14 Resistor film, 1k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R15 Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R16 Resistor film, 3,24k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R17 Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R18 Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R19 Resistor film, 3,24k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R20 Resistor film, 3,24k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R21 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R22 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R23 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R24 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R25 Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R26 Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R27 Resistor film, 2,55k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R28 Resistor film, 2,55k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R29 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R30 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R31 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R32 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R33 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R34 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R35 Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R36 Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R37 Resistor film, 2,55k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R38 Resistor film, 2,55k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R39 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R40 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R41 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R42 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R43 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R44 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R45 Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R46 Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R47 Resistor film, 2,55k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R48 Resistor film, 2,55k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R49 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R50 Resistor film, 330R, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R51 Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R52 Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R53 Resistor film, 69k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R54 Resistor film, 69k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R55 Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=PowerLegs Member=Component R56 Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R57 Resistor film, 54.9k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R58 Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component R59 Resistor film, 10k, ±5%, 0603, 0.1W, -55...+125°C
+Added Member To Class: ClassName=Hexa Member=Component VD1 LED, Green, *, *, *, -55...+150°C
+Added Member To Class: ClassName=Hexa Member=Component VD2 LED, Green, *, *, *, -55...+150°C
+Added Member To Class: ClassName=Hexa Member=Component VD3 LED, Green, *, *, *, -55...+150°C
+Added Member To Class: ClassName=Hexa Member=Component VD4 LED, Green, *, *, *, -55...+150°C
+Added Member To Class: ClassName=Hexa Member=Component VD5 LED, Green, *, *, *, -55...+150°C
+Added Member To Class: ClassName=Hexa Member=Component VD6 LED, Green, *, *, *, -55...+150°C
+Added Member To Class: ClassName=Hexa Member=Component X1 Connector, 8pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=Hexa Member=Component X2 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=Hexa Member=Component X3 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=Hexa Member=Component X4 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=Hexa Member=Component X5 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=Hexa Member=Component X6 Connector, 5pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=Hexa Member=Component X7 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=Hexa Member=Component X8 Connector, 2pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=Hexa Member=Component X9 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X10 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X11 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X12 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X13 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X14 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X15 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X16 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X17 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X18 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X19 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X20 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X21 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X22 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X23 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X24 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X25 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X26 Connector, 3pin, 2.54mm, 500VAC, 3A
+Added Member To Class: ClassName=PowerLegs Member=Component X27 Connector, 3pin, 2.54mm, 500VAC, 3A
