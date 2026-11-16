@@ -1,0 +1,233 @@
+[serial]
+port = "/dev/ttyS0"
+baud = 115200
+response_timeout_s = 0.080
+lock_file = "/run/lock/hexapod-uart.lock"
+
+[geometry]
+lengths_m = [0.044, 0.080, 0.13978]
+neutral_local_m = [0.161227687, 0.0, -0.083593132]
+control_local_m = [0.150613118, 0.0, -0.087350210]
+center_angles_deg = { Coxa = 0.0, Femur = 35.2666666667, Tibia = -108.0833333333 }
+
+[mounts.FL]
+x = 0.08294
+y = 0.06281
+z = 0.0
+yaw_deg = 45.0
+
+[mounts.ML]
+x = -0.00025
+y = 0.08025
+z = 0.0
+yaw_deg = 90.0
+
+[mounts.RL]
+x = -0.08294
+y = 0.06281
+z = 0.0
+yaw_deg = 135.0
+
+[mounts.RR]
+x = -0.08294
+y = -0.06281
+z = 0.0
+yaw_deg = -135.0
+
+[mounts.MR]
+x = -0.00025
+y = -0.08025
+z = 0.0
+yaw_deg = -90.0
+
+[mounts.FR]
+x = 0.08294
+y = -0.06281
+z = 0.0
+yaw_deg = -45.0
+
+[rc]
+gpiochip_label = "pinctrl-bcm2711"
+freshness_s = 0.150
+neutral_tolerance_us = 60
+enable_threshold_us = 1700
+
+[rc_channels.vx]
+gpio = 27
+center_us = 1500
+minimum_us = 1000
+maximum_us = 2000
+deadband_us = 40
+inverted = false
+
+[rc_channels.vy]
+gpio = 22
+center_us = 1500
+minimum_us = 1000
+maximum_us = 2000
+deadband_us = 40
+inverted = false
+
+[rc_channels.wz]
+gpio = 10
+center_us = 1500
+minimum_us = 1000
+maximum_us = 2000
+deadband_us = 40
+inverted = false
+
+[rc_channels.enable]
+gpio = 9
+center_us = 1500
+minimum_us = 1000
+maximum_us = 2000
+deadband_us = 40
+inverted = false
+
+[planner]
+control_hz = 50.0
+vx_max_m_s = 0.020
+vy_max_m_s = 0.010
+wz_max_rad_s = 0.100
+foot_lift_m = 0.015
+transfer_s = 0.500
+stability_margin_m = 0.015
+com_x_m = 0.0
+com_y_m = 0.0
+speed_filter_tau_s = 0.300
+return_speed_m_s = 0.025
+transfer_order = ["FL", "RR", "ML", "FR", "RL", "MR"]
+
+[safety]
+contact_levels_verified = false
+contact_active_high = true
+contact_search_limit_m = 0.005
+
+# direction and hardware_verified are deliberately provisional. The direction is
+# applied exactly once to (geometric angle - 1500-us geometric angle). Each of
+# the following 18 independent records must be checked on the isolated hardware.
+[servos."FL.Tibia"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."FL.Femur"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."FL.Coxa"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."ML.Tibia"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."ML.Femur"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."ML.Coxa"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."RL.Tibia"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."RL.Femur"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."RL.Coxa"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."RR.Tibia"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."RR.Femur"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."RR.Coxa"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."MR.Tibia"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."MR.Femur"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."MR.Coxa"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."FR.Tibia"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."FR.Femur"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false
+
+[servos."FR.Coxa"]
+angles_deg = [-45.0, 0.0, 45.0]
+pulses_us = [1000, 1500, 2000]
+direction = 1
+limits_deg = [-45.0, 45.0]
+hardware_verified = false

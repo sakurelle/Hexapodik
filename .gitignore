@@ -3,3 +3,7 @@
 *.a3~
 **/History/**/*.Zip
 **/__Previews/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/

@@ -1,0 +1,26 @@
+[Unit]
+Description=Hexapodik Raspberry Pi controller
+After=dev-ttyS0.device
+Wants=dev-ttyS0.device
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+SupplementaryGroups=dialout gpio
+WorkingDirectory=/home/pi/hexapod
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/home/pi/hexapod/src
+ExecStart=/usr/bin/python3 -m hexapod.cli --config /home/pi/hexapod/config/hexapod.toml run
+ExecStopPost=/usr/bin/python3 -m hexapod.cli --config /home/pi/hexapod/config/hexapod.toml disarm
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/run/lock
+
+[Install]
+WantedBy=multi-user.target
