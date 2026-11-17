@@ -11,6 +11,14 @@ namespace hexapod {
 
 bool UartTransport::init(std::uint32_t baud) {
 #if defined(PICO_ON_DEVICE)
+    // Keep TX at its idle-high level throughout initialization. At reset GP0 is
+    // an input with a pull-down, so drive it high before handing it to UART0.
+    gpio_init(kUartTxGpio);
+    gpio_put(kUartTxGpio, true);
+    gpio_set_dir(kUartTxGpio, GPIO_OUT);
+    gpio_disable_pulls(kUartTxGpio);
+    gpio_disable_pulls(kUartRxGpio);
+
     uart_init(uart0, baud);
     gpio_set_function(kUartTxGpio, GPIO_FUNC_UART);
     gpio_set_function(kUartRxGpio, GPIO_FUNC_UART);
