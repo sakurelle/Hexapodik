@@ -1,7 +1,5 @@
 #include "drivers/servo_controller.h"
 
-#include "config/servo_config.h"
-
 #if defined(PICO_ON_DEVICE)
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
@@ -39,20 +37,18 @@ void sortPulseEvents(std::array<PulseEvent, kServoCount>* events) {
 
 std::uint32_t pioDelayTicksForSegmentUs(std::uint32_t segment_us) {
     const std::uint32_t segment_ticks = segment_us * kTicksPerUs;
-    if (segment_ticks <= ServoController::kPioSegmentOverheadTicks) {
-        return 0;
-    }
-    return segment_ticks - ServoController::kPioSegmentOverheadTicks;
+    return segment_ticks <= ServoController::kPioSegmentOverheadTicks
+               ? 0
+               : segment_ticks - ServoController::kPioSegmentOverheadTicks;
 }
 
 }  // namespace
 
 bool ServoController::init() {
-    last_pulses_us_.fill(1500);
-    const std::size_t center_count = buildEventBuffer(last_pulses_us_, &buffers_[0]);
-    event_counts_[0] = center_count;
-    event_counts_[1] = center_count;
-    buffers_[1] = buffers_[0];
+    if (initialized_) {
+        return true;
+    }
+    last_pulses_us_.fill(0);
 
 #if defined(PICO_ON_DEVICE)
     PIO pio = pio0;
@@ -62,7 +58,6 @@ bool ServoController::init() {
     pio_sm_set_enabled(pio, kServoPioSm, false);
     pio_sm_clear_fifos(pio, kServoPioSm);
     pio_sm_restart(pio, kServoPioSm);
-
     sm_config_set_out_pins(&cfg, kFirstServoGpio, kServoGpioSpan);
     sm_config_set_out_shift(&cfg, true, false, 32);
     sm_config_set_clkdiv(&cfg, static_cast<float>(clock_get_hz(clk_sys)) / 1000000.0f);
@@ -73,40 +68,70 @@ bool ServoController::init() {
     pio_sm_set_consecutive_pindirs(pio, kServoPioSm, kFirstServoGpio, kServoGpioSpan, true);
     pio_sm_set_pins_with_mask(pio, kServoPioSm, 0, kAllServoPinsMask << kFirstServoGpio);
     pio_sm_init(pio, kServoPioSm, offset, &cfg);
-    pio_sm_clear_fifos(pio, kServoPioSm);
-    pio_sm_restart(pio, kServoPioSm);
+    pio_sm_set_enabled(pio, kServoPioSm, false);
 
     dma_channel_ = dma_claim_unused_channel(false);
     if (dma_channel_ < 0) {
         return false;
     }
-
     g_dma_owner = this;
     dma_channel_set_irq0_enabled(dma_channel_, true);
     irq_set_exclusive_handler(DMA_IRQ_0, &ServoController::dmaIrqHandler);
     irq_set_enabled(DMA_IRQ_0, true);
-
-    active_buffer_ = 0;
-    pio_sm_set_enabled(pio, kServoPioSm, true);
-    startDma(active_buffer_);
 #endif
+
     initialized_ = true;
+    outputs_enabled_ = false;
     return true;
 }
 
-bool ServoController::submitPulses(const std::array<std::uint16_t, kServoCount>& pulses_us) {
-    if (!initialized_ && !init()) {
+bool ServoController::enable(const std::array<std::uint16_t, kServoCount>& pulses_us) {
+    if ((!initialized_ && !init()) || !pulsesValid(pulses_us)) {
+        return false;
+    }
+    EventBuffer frame{};
+    const std::size_t count = buildEventBuffer(pulses_us, &frame);
+    if (count == 0) {
         return false;
     }
 
-    for (const std::uint16_t pulse : pulses_us) {
-        if (pulse < 500 || pulse > kServoFrameUs) {
-            return false;
-        }
+#if defined(PICO_ON_DEVICE)
+    const std::uint32_t irq_state = save_and_disable_interrupts();
+    if (dma_channel_ >= 0) {
+        dma_channel_abort(dma_channel_);
+        dma_hw->ints0 = 1u << dma_channel_;
     }
+    pio_sm_set_enabled(pio0, kServoPioSm, false);
+    pio_sm_clear_fifos(pio0, kServoPioSm);
+    pio_sm_restart(pio0, kServoPioSm);
+    pio_sm_set_pins_with_mask(pio0, kServoPioSm, 0, kAllServoPinsMask << kFirstServoGpio);
+    active_buffer_ = 0;
+    pending_buffer_ = 1;
+    pending_valid_ = false;
+    buffers_[0] = frame;
+    buffers_[1] = frame;
+    event_counts_[0] = count;
+    event_counts_[1] = count;
+    outputs_enabled_ = true;
+    pio_sm_set_enabled(pio0, kServoPioSm, true);
+    startDma(active_buffer_);
+    restore_interrupts(irq_state);
+#else
+    buffers_[0] = frame;
+    event_counts_[0] = count;
+    outputs_enabled_ = true;
+#endif
 
-    EventBuffer next_buffer{};
-    const std::size_t count = buildEventBuffer(pulses_us, &next_buffer);
+    last_pulses_us_ = pulses_us;
+    return true;
+}
+
+bool ServoController::update(const std::array<std::uint16_t, kServoCount>& pulses_us) {
+    if (!outputs_enabled_ || !pulsesValid(pulses_us)) {
+        return false;
+    }
+    EventBuffer frame{};
+    const std::size_t count = buildEventBuffer(pulses_us, &frame);
     if (count == 0) {
         return false;
     }
@@ -114,33 +139,51 @@ bool ServoController::submitPulses(const std::array<std::uint16_t, kServoCount>&
 #if defined(PICO_ON_DEVICE)
     const std::uint32_t irq_state = save_and_disable_interrupts();
     pending_buffer_ = active_buffer_ ^ 1u;
-    buffers_[pending_buffer_] = next_buffer;
+    buffers_[pending_buffer_] = frame;
     event_counts_[pending_buffer_] = count;
     pending_valid_ = true;
     restore_interrupts(irq_state);
 #else
-    buffers_[active_buffer_] = next_buffer;
+    buffers_[active_buffer_] = frame;
     event_counts_[active_buffer_] = count;
 #endif
-
     last_pulses_us_ = pulses_us;
     return true;
 }
 
-bool ServoController::submitJointTargets(const std::array<JointAngles, kLegCount>& joints) {
-    std::array<std::uint16_t, kServoCount> pulses{};
-    if (!mapRobotAnglesToPulses(joints, &pulses)) {
-        return false;
+void ServoController::disable() {
+#if defined(PICO_ON_DEVICE)
+    if (initialized_) {
+        const std::uint32_t irq_state = save_and_disable_interrupts();
+        pending_valid_ = false;
+        if (dma_channel_ >= 0) {
+            dma_channel_abort(dma_channel_);
+            dma_hw->ints0 = 1u << dma_channel_;
+        }
+        pio_sm_set_enabled(pio0, kServoPioSm, false);
+        pio_sm_clear_fifos(pio0, kServoPioSm);
+        pio_sm_restart(pio0, kServoPioSm);
+        pio_sm_set_pins_with_mask(pio0, kServoPioSm, 0, kAllServoPinsMask << kFirstServoGpio);
+        restore_interrupts(irq_state);
     }
-    return submitPulses(pulses);
+#endif
+    outputs_enabled_ = false;
+}
+
+bool ServoController::pulsesValid(const std::array<std::uint16_t, kServoCount>& pulses_us) {
+    for (const std::uint16_t pulse : pulses_us) {
+        if (pulse < kMinPulseUs || pulse > kMaxPulseUs) {
+            return false;
+        }
+    }
+    return true;
 }
 
 std::size_t ServoController::buildEventBuffer(const std::array<std::uint16_t, kServoCount>& pulses_us,
                                               EventBuffer* buffer) {
-    if (buffer == nullptr) {
+    if (buffer == nullptr || !pulsesValid(pulses_us)) {
         return 0;
     }
-
     std::array<PulseEvent, kServoCount> events{};
     for (std::size_t i = 0; i < kServoCount; ++i) {
         events[i] = {pulses_us[i], 1u << i};
@@ -150,7 +193,6 @@ std::size_t ServoController::buildEventBuffer(const std::array<std::uint16_t, kS
     std::size_t out = 0;
     std::uint32_t current_mask = kAllServoPinsMask;
     std::uint16_t previous_us = 0;
-
     for (std::size_t i = 0; i < kServoCount;) {
         const std::uint16_t at_us = events[i].at_us;
         (*buffer)[out++] = {current_mask, pioDelayTicksForSegmentUs(at_us - previous_us)};
@@ -162,7 +204,6 @@ std::size_t ServoController::buildEventBuffer(const std::array<std::uint16_t, kS
         current_mask &= ~clear_mask;
         previous_us = at_us;
     }
-
     if (previous_us < kServoFrameUs) {
         (*buffer)[out++] = {current_mask, pioDelayTicksForSegmentUs(kServoFrameUs - previous_us)};
     }
@@ -171,7 +212,7 @@ std::size_t ServoController::buildEventBuffer(const std::array<std::uint16_t, kS
 
 void ServoController::startDma(std::uint8_t buffer_index) {
 #if defined(PICO_ON_DEVICE)
-    if (dma_channel_ < 0 || event_counts_[buffer_index] == 0) {
+    if (!outputs_enabled_ || dma_channel_ < 0 || event_counts_[buffer_index] == 0) {
         return;
     }
     dma_channel_config cfg = dma_channel_get_default_config(dma_channel_);
@@ -196,7 +237,9 @@ void ServoController::handleDmaComplete() {
         return;
     }
     dma_hw->ints0 = 1u << dma_channel_;
-
+    if (!outputs_enabled_) {
+        return;
+    }
     if (pending_valid_) {
         active_buffer_ = pending_buffer_;
         pending_valid_ = false;

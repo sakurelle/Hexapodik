@@ -1,7 +1,5 @@
 #include "protocol/protocol.h"
 
-#include <cstring>
-
 #include "protocol/cobs.h"
 #include "protocol/crc.h"
 
@@ -10,6 +8,16 @@ namespace {
 
 constexpr std::size_t kHeaderSize = 7;
 constexpr std::size_t kCrcSize = 2;
+
+void writeU16Le(std::uint8_t* out, std::uint16_t value) {
+    out[0] = static_cast<std::uint8_t>(value & 0xFFu);
+    out[1] = static_cast<std::uint8_t>(value >> 8u);
+}
+
+std::uint16_t readU16Le(const std::uint8_t* in) {
+    return static_cast<std::uint16_t>(in[0]) |
+           static_cast<std::uint16_t>(static_cast<std::uint16_t>(in[1]) << 8u);
+}
 
 void writeU32Le(std::uint8_t* out, std::uint32_t value) {
     out[0] = static_cast<std::uint8_t>(value & 0xFFu);
@@ -25,25 +33,20 @@ std::uint32_t readU32Le(const std::uint8_t* in) {
            (static_cast<std::uint32_t>(in[3]) << 24u);
 }
 
-void writeFloat(std::uint8_t* out, float value) {
-    static_assert(sizeof(float) == 4, "Expected 32-bit float");
-    std::memcpy(out, &value, sizeof(float));
-}
-
-float readFloat(const std::uint8_t* in) {
-    float value = 0.0f;
-    std::memcpy(&value, in, sizeof(float));
-    return value;
-}
-
 }  // namespace
 
 void Parser::reset() {
     frame_size_ = 0;
+    discarding_ = false;
 }
 
 bool Parser::push(std::uint8_t byte, Packet* out_packet) {
     if (byte == 0) {
+        if (discarding_) {
+            discarding_ = false;
+            frame_size_ = 0;
+            return false;
+        }
         if (frame_size_ == 0) {
             return false;
         }
@@ -55,9 +58,13 @@ bool Parser::push(std::uint8_t byte, Packet* out_packet) {
         return ok;
     }
 
+    if (discarding_) {
+        return false;
+    }
     if (frame_size_ >= frame_.size()) {
         ++dropped_frames_;
         frame_size_ = 0;
+        discarding_ = true;
         return false;
     }
     frame_[frame_size_++] = byte;
@@ -65,7 +72,7 @@ bool Parser::push(std::uint8_t byte, Packet* out_packet) {
 }
 
 std::size_t encodePacket(const Packet& packet, std::uint8_t* output, std::size_t output_size) {
-    if (packet.payload_size > kMaxPayloadSize || output_size < 2) {
+    if (output == nullptr || packet.payload_size > kMaxPayloadSize || output_size < 2) {
         return 0;
     }
 
@@ -82,8 +89,7 @@ std::size_t encodePacket(const Packet& packet, std::uint8_t* output, std::size_t
         raw[kHeaderSize + i] = packet.payload[i];
     }
     const std::uint16_t crc = crc16Ccitt(raw.data(), kHeaderSize + packet.payload_size);
-    raw[kHeaderSize + packet.payload_size] = static_cast<std::uint8_t>(crc & 0xFFu);
-    raw[kHeaderSize + packet.payload_size + 1] = static_cast<std::uint8_t>(crc >> 8u);
+    writeU16Le(&raw[kHeaderSize + packet.payload_size], crc);
 
     const std::size_t encoded = cobsEncode(raw.data(), raw_size, output, output_size - 1);
     if (encoded == 0) {
@@ -94,7 +100,7 @@ std::size_t encodePacket(const Packet& packet, std::uint8_t* output, std::size_t
 }
 
 bool decodePacket(const std::uint8_t* data, std::size_t size, Packet* packet) {
-    if (packet == nullptr) {
+    if (data == nullptr || packet == nullptr) {
         return false;
     }
     std::array<std::uint8_t, kMaxFrameSize> raw{};
@@ -108,8 +114,7 @@ bool decodePacket(const std::uint8_t* data, std::size_t size, Packet* packet) {
         return false;
     }
     const std::uint16_t expected = crc16Ccitt(raw.data(), kHeaderSize + payload_size);
-    const std::uint16_t actual = static_cast<std::uint16_t>(raw[kHeaderSize + payload_size]) |
-                                 (static_cast<std::uint16_t>(raw[kHeaderSize + payload_size + 1]) << 8u);
+    const std::uint16_t actual = readU16Le(&raw[kHeaderSize + payload_size]);
     if (actual != expected) {
         return false;
     }
@@ -123,31 +128,60 @@ bool decodePacket(const std::uint8_t* data, std::size_t size, Packet* packet) {
     return true;
 }
 
-bool makeVelocityCommandPacket(const MotionCommand& command, Packet* packet) {
-    if (packet == nullptr) {
+bool makePwmCommandPacket(MessageType type,
+                          std::uint32_t sequence,
+                          const std::array<std::uint16_t, kServoCount>& pulses_us,
+                          Packet* packet) {
+    if (packet == nullptr || (type != MessageType::Arm && type != MessageType::SetPwm)) {
         return false;
     }
-    packet->type = MessageType::CmdVelocity;
-    packet->sequence = command.sequence;
-    packet->payload_size = 12;
-    writeFloat(&packet->payload[0], command.vx_mps);
-    writeFloat(&packet->payload[4], command.vy_mps);
-    writeFloat(&packet->payload[8], command.wz_radps);
+    packet->type = type;
+    packet->sequence = sequence;
+    packet->payload_size = kPwmPayloadSize;
+    for (std::size_t i = 0; i < kServoCount; ++i) {
+        writeU16Le(&packet->payload[i * 2], pulses_us[i]);
+    }
     return true;
 }
 
-bool motionCommandFromPacket(const Packet& packet, MotionCommand* command) {
-    if (command == nullptr) {
+bool pwmCommandFromPacket(const Packet& packet, std::array<std::uint16_t, kServoCount>* pulses_us) {
+    if (pulses_us == nullptr ||
+        (packet.type != MessageType::Arm && packet.type != MessageType::SetPwm) ||
+        packet.payload_size != kPwmPayloadSize) {
         return false;
     }
-    if (packet.type != MessageType::CmdVelocity || packet.payload_size != 12) {
+    for (std::size_t i = 0; i < kServoCount; ++i) {
+        (*pulses_us)[i] = readU16Le(&packet.payload[i * 2]);
+    }
+    return true;
+}
+
+bool makeStatusPacket(std::uint32_t sequence, const StatusPayload& status, Packet* packet) {
+    if (packet == nullptr) {
         return false;
     }
-    command->vx_mps = readFloat(&packet.payload[0]);
-    command->vy_mps = readFloat(&packet.payload[4]);
-    command->wz_radps = readFloat(&packet.payload[8]);
-    command->sequence = packet.sequence;
-    command->valid = true;
+    packet->type = MessageType::Status;
+    packet->sequence = sequence;
+    packet->payload_size = kStatusPayloadSize;
+    packet->payload[0] = static_cast<std::uint8_t>(status.state);
+    packet->payload[1] = static_cast<std::uint8_t>(status.error);
+    packet->payload[2] = status.outputs_enabled ? 1u : 0u;
+    packet->payload[3] = status.input_mask;
+    writeU32Le(&packet->payload[4], status.last_command_sequence);
+    writeU32Le(&packet->payload[8], status.dropped_frames);
+    return true;
+}
+
+bool statusFromPacket(const Packet& packet, StatusPayload* status) {
+    if (status == nullptr || packet.type != MessageType::Status || packet.payload_size != kStatusPayloadSize) {
+        return false;
+    }
+    status->state = static_cast<ControllerState>(packet.payload[0]);
+    status->error = static_cast<ErrorCode>(packet.payload[1]);
+    status->outputs_enabled = (packet.payload[2] & 1u) != 0;
+    status->input_mask = packet.payload[3];
+    status->last_command_sequence = readU32Le(&packet.payload[4]);
+    status->dropped_frames = readU32Le(&packet.payload[8]);
     return true;
 }
 

@@ -1,7 +1,7 @@
 {
     "folders": [
         {
-            "path": "RP2040RobotController"
+            "path": "."
         }
     ],
     "settings": {}

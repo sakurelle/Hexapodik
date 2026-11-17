@@ -1,5 +1,7 @@
 #include "drivers/uart_transport.h"
 
+#include "config/robot_config.h"
+
 #if defined(PICO_ON_DEVICE)
 #include "hardware/gpio.h"
 #include "hardware/uart.h"
@@ -10,8 +12,8 @@ namespace hexapod {
 bool UartTransport::init(std::uint32_t baud) {
 #if defined(PICO_ON_DEVICE)
     uart_init(uart0, baud);
-    gpio_set_function(0, GPIO_FUNC_UART);
-    gpio_set_function(1, GPIO_FUNC_UART);
+    gpio_set_function(kUartTxGpio, GPIO_FUNC_UART);
+    gpio_set_function(kUartRxGpio, GPIO_FUNC_UART);
     uart_set_hw_flow(uart0, false, false);
     uart_set_format(uart0, 8, 1, UART_PARITY_NONE);
     uart_set_fifo_enabled(uart0, true);

@@ -1,25 +1,32 @@
 #pragma once
 
-#include <array>
+#include <cstdint>
 
-#include "core/hardware_interfaces.h"
-#include "locomotion/contact_adaptation.h"
+#include "config/robot_config.h"
 
 namespace hexapod {
 
-class ContactSensors : public IContactSource {
+class InputDebouncer {
 public:
-    void init();
-    void update(float dt_s) override;
-    const ContactManager& manager() const { return manager_; }
-    const std::array<ContactState, kLegCount>& states() const override { return manager_.states(); }
-    std::array<bool, kLegCount> contacts() const { return manager_.stableContacts(); }
-    std::array<bool, kLegCount> rawContacts() const { return manager_.rawContacts(); }
+    void reset(std::uint8_t raw_mask, std::uint64_t now_us);
+    void update(std::uint8_t raw_mask, std::uint64_t now_us);
+    std::uint8_t stableMask() const { return stable_mask_; }
 
 private:
-    std::array<bool, kLegCount> readRaw() const;
+    std::uint8_t stable_mask_ = 0;
+    std::uint8_t candidate_mask_ = 0;
+    std::array<std::uint64_t, kLegCount> candidate_since_us_{};
+};
 
-    ContactManager manager_{};
+class ContactSensors {
+public:
+    void init(std::uint64_t now_us);
+    void update(std::uint64_t now_us);
+    std::uint8_t inputMask() const { return debouncer_.stableMask(); }
+
+private:
+    std::uint8_t readRawMask() const;
+    InputDebouncer debouncer_{};
     bool initialized_ = false;
 };
 

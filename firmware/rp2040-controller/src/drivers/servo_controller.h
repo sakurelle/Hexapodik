@@ -4,11 +4,11 @@
 #include <cstdint>
 
 #include "config/robot_config.h"
-#include "core/hardware_interfaces.h"
+#include "controller/low_level_controller.h"
 
 namespace hexapod {
 
-class ServoController : public IServoOutput {
+class ServoController : public IPwmOutput {
 public:
     struct Event {
         std::uint32_t mask = 0;
@@ -21,14 +21,17 @@ public:
     using EventBuffer = std::array<Event, kMaxEvents>;
 
     bool init();
-    bool submitPulses(const std::array<std::uint16_t, kServoCount>& pulses_us);
-    bool submitJointTargets(const std::array<JointAngles, kLegCount>& joints) override;
+    bool enable(const std::array<std::uint16_t, kServoCount>& pulses_us) override;
+    bool update(const std::array<std::uint16_t, kServoCount>& pulses_us) override;
+    void disable() override;
+    bool enabled() const override { return outputs_enabled_; }
     const std::array<std::uint16_t, kServoCount>& lastPulses() const { return last_pulses_us_; }
 
     static std::size_t buildEventBuffer(const std::array<std::uint16_t, kServoCount>& pulses_us,
                                         EventBuffer* buffer);
 
 private:
+    static bool pulsesValid(const std::array<std::uint16_t, kServoCount>& pulses_us);
     void startDma(std::uint8_t buffer_index);
     void handleDmaComplete();
     static void dmaIrqHandler();
@@ -41,6 +44,7 @@ private:
     int dma_channel_ = -1;
     bool pending_valid_ = false;
     bool initialized_ = false;
+    bool outputs_enabled_ = false;
 };
 
 }  // namespace hexapod

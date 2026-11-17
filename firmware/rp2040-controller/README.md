@@ -1,122 +1,89 @@
-# RP2040RobotController
+# RP2040 Hexapod Low-Level Controller
 
-Real-time C++17 firmware for a six-legged robot on Waveshare RP2040-Plus using Raspberry Pi Pico SDK, CMake, RC PWM input, contact sensors, analytical kinematics, continuous Cartesian tripod gait, and PIO-owned servo pins.
+Прошивка Raspberry Pi Pico W на RP2040. Pico не рассчитывает походку, IK или калибровку: он принимает по UART готовые длительности 18 импульсов, формирует независимые сигналы GP2..GP19 через PIO+DMA и возвращает маску шести входов концевиков.
 
-## Build and Flash
+## Сборка
 
-Firmware build with the Raspberry Pi Pico SDK extension or CMake presets:
+Чистая Release-сборка именно для Pico W:
 
 ```powershell
+cd C:\Users\sakurelle\Documents\Hexapodik\firmware\rp2040-controller
 cmake --preset pico-release
-cmake --build --preset pico-release --target RP2040RobotController
+cmake --build --preset pico-release --clean-first --target RP2040RobotController
 ```
 
-The default board is `pico`, which is appropriate for Waveshare RP2040-Plus because this firmware only depends on the standard RP2040 peripherals used by Pico SDK.
+Результат:
 
-Manual firmware build:
+```text
+build-pico-w\RP2040RobotController.uf2
+```
+
+Прошивка не загружает UF2 автоматически и не включает сервоприводы при старте.
+
+## Распиновка
+
+Порядок каналов UART: ноги `FL, ML, RL, RR, MR, FR`; внутри ноги `Tibia, Femur, Coxa`.
+
+| Нога | Tibia | Femur | Coxa | NC-вход |
+|---|---:|---:|---:|---:|
+| FL | GP2 | GP3 | GP4 | GP20 |
+| ML | GP5 | GP6 | GP7 | GP21 |
+| RL | GP8 | GP9 | GP10 | GP22 |
+| RR | GP11 | GP12 | GP13 | GP26 |
+| MR | GP14 | GP15 | GP16 | GP27 |
+| FR | GP17 | GP18 | GP19 | GP28 |
+
+UART0, `115200 8N1`:
+
+- GP0 TX Pico -> GPIO15 RX Raspberry Pi 4, физический pin 10.
+- GP1 RX Pico <- GPIO14 TX Raspberry Pi 4, физический pin 8.
+- Общая GND, только логика 3,3 В.
+
+Внешние подтяжки концевиков обязательны. NC замкнут даёт LOW, NC разомкнут даёт HIGH. В status бит 0 соответствует FL, ... бит 5 соответствует FR; `1` означает только стабильный HIGH/разомкнутый вход. Обрыв провода электрически неотличим от разомкнутого концевика.
+
+## PWM и безопасность
+
+- Период 20 мс, 50 Гц; длительности задаются независимо для всех GP2..GP19.
+- Команда содержит целые микросекунды; допустимы только `1000..2000` включительно.
+- Один неверный канал отклоняет весь набор.
+- Новый набор становится активным только между полными PWM-кадрами.
+- После загрузки PIO выключен и все PWM-линии удерживаются LOW.
+- Только валидный `ARM` с полным набором из 18 значений включает выходы.
+- При отсутствии валидного `ARM/SET_PWM` 250 мс последний PWM-набор продолжает удерживаться, состояние становится `COMMUNICATION_FAULT`.
+- После timeout `SET_PWM` не возобновляет движение. Нужны валидные `DISARM`, затем новый `ARM`.
+- `DISARM` выключает PIO/DMA и переводит GP2..GP19 в LOW, включая состояния ошибок.
+
+## UART-протокол
+
+Полное описание wire format, состояний, ошибок и примеры: [docs/uart_protocol.md](docs/uart_protocol.md).
+
+Команды:
+
+| Type | Имя | Payload |
+|---:|---|---|
+| `0x01` | `ARM` | 18 x `uint16_le` |
+| `0x02` | `SET_PWM` | 18 x `uint16_le` |
+| `0x03` | `DISARM` | пустой |
+| `0x04` | `GET_STATUS` | пустой |
+| `0x80` | `STATUS` | 12 байт |
+
+## Host-tests
 
 ```powershell
-$env:PICO_SDK_PATH="C:\path\to\pico-sdk"
-cmake -S . -B build-pico -G "Ninja"
-cmake --build build-pico
+cmake -S tests -B build-host-low-level -G Ninja `
+  "-DCMAKE_CXX_COMPILER=C:\Program Files\JetBrains\CLion 2025.2.2\bin\mingw\bin\g++.exe"
+cmake --build build-host-low-level --clean-first
+ctest --test-dir build-host-low-level --output-on-failure
 ```
 
-Flash by copying `build/RP2040RobotController.uf2` to the RP2040 BOOTSEL drive, or use the Pico extension's Run Project workflow.
+Тесты проверяют COBS/CRC и восстановление парсера, порядок каналов, атомарное отклонение неверного набора, stale sequence, timeout, удержание последней позы, запрет автоматического возобновления, статус при выключенных выходах, debounce входов и независимый PIO event stream.
 
-## GPIO
+## Проверка на железе
 
-`GP0` is RC forward/back PWM. `GP1` is RC yaw PWM. Servo outputs are the contiguous PIO bus `GP2..GP19`.
+1. Отключить силовое питание серв. Подать питание только на Pico W и проверить UART `DISARM/GET_STATUS`, CRC и маску входов.
+2. Вручную замыкать каждый вход GP20, GP21, GP22, GP26, GP27, GP28 и проверять соответствующий бит status после debounce.
+3. Без силового питания серв отправить `ARM` и проверить осциллографом GP2..GP19: период 20 мс, правильный порядок каналов и разные длительности.
+4. Отправить `DISARM` и убедиться, что выходы стали LOW.
+5. Только после этого подключить один вывешенный привод с отдельным силовым питанием и общей землёй; проверить сначала 1500 мкс, затем небольшие безопасные изменения.
 
-Servo and contact mapping:
-
-```text
-FL: GP2 Coxa,  GP3 Femur,  GP4 Tibia,  GP28 Contact
-ML: GP5 Coxa,  GP6 Femur,  GP7 Tibia,  GP27 Contact
-RL: GP8 Coxa,  GP9 Femur,  GP10 Tibia, GP26 Contact
-RR: GP11 Coxa, GP12 Femur, GP13 Tibia, GP22 Contact
-MR: GP14 Coxa, GP15 Femur, GP16 Tibia, GP21 Contact
-FR: GP17 Coxa, GP18 Femur, GP19 Tibia, GP20 Contact
-```
-
-Contact inputs are `HIGH = contact`. External pull-up hardware is assumed; firmware does not enable an internal pull-down.
-
-## Calibration
-
-Servo calibration is centralized in `src/config/servo_config.cpp`.
-
-Initial values:
-
-```text
-center_us = 1500
-min_pulse_us = 1000
-max_pulse_us = 2000
-us_per_degree = 1000 / 150
-FL/ML/RL direction = +1
-FR/MR/RR direction = -1
-```
-
-Calibrate every servo's `center_us`, `direction`, `us_per_degree`, `min_pulse_us`, and `max_pulse_us` on the physical robot before loading the legs.
-
-## RC
-
-Default PWM ranges are in `src/config/robot_config.h`:
-
-```text
-MIN 1000 us
-CENTER 1500 us
-MAX 2000 us
-DEADBAND 50 us
-FAILSAFE 100 ms
-vx max 80 mm/s
-yaw max 0.45 rad/s
-```
-
-`CommandSource` keeps locomotion independent from RC input so UART0 command control can be added later.
-
-## Gait
-
-Tripod A is `FR + ML + RR`; Tripod B is `FL + MR + RL`, with phase offset `0.5`.
-
-Key parameters:
-
-```text
-control loop 200 Hz
-servo frame 50 Hz / 20000 us
-stance duty 0.65
-cycle frequency 0.6..1.5 Hz
-swing height 30 mm
-ground search 15 mm
-contact debounce 12 ms
-support margin 5 mm
-```
-
-The stance model integrates Cartesian foot velocity from body twist:
-
-```text
-footVx = -vx + yawRate * footY
-footVy = -vy - yawRate * footX
-```
-
-## Faults
-
-```text
-NONE
-FAULT_NO_GROUND
-FAULT_CONTACT_STUCK
-FAULT_IK_INVALID
-FAULT_SUPPORT_LOST
-```
-
-On invalid IK or unsafe workspace, the controller keeps the last valid servo target. On latched contact faults, the gait enters `FAULT` and stops starting new swing phases.
-
-## Tests
-
-Host-side tests cover FK/IK round trips, neutral pose, invalid targets, gait continuity and tripod offset, contact debounce/faults, support polygon, and servo mapping:
-
-```powershell
-cmake -S tests -B build-host-tests
-cmake --build build-host-tests
-ctest --test-dir build-host-tests --output-on-failure
-```
-
-The host tests are intentionally separate from the Pico firmware CMake project so native test tooling cannot interfere with firmware configure/build in VS Code.
+Не начинать испытания со всеми нагруженными ногами и не подключать силовое питание серв до проверки сигналов осциллографом.

@@ -1,5 +1,5 @@
 param(
-    [string]$BuildDir = "build",
+    [string]$BuildDir = "build-pico-w",
     [string]$PicoSdkPath = "$env:USERPROFILE\.pico-sdk\sdk\2.3.0"
 )
 
@@ -11,7 +11,7 @@ if (-not (Test-Path $cmake)) {
 $env:PICO_SDK_PATH = $PicoSdkPath
 $env:Path = "$env:USERPROFILE\.pico-sdk\toolchain\15_2_Rel1\bin;$env:USERPROFILE\.pico-sdk\ninja\v1.13.2;$env:Path"
 
-& $cmake -S . -B $BuildDir -G Ninja -DPICO_BOARD=pico `
+& $cmake -S . -B $BuildDir -G Ninja -DPICO_BOARD=pico_w `
     "-Dpioasm_DIR=$env:USERPROFILE\.pico-sdk\tools\2.3.0\pioasm" `
     "-Dpicotool_DIR=$env:USERPROFILE\.pico-sdk\picotool\2.3.0\picotool"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
